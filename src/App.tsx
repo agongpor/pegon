@@ -39,20 +39,31 @@ export default function App() {
   // Config & State
   const [preset, setPreset] = useState<PresetType>("pegon");
   const [pegonGaStyle, setPegonGaStyle] = useState<"dot" | "plain">(() => {
-    return (localStorage.getItem("pegon_ga_style") as "dot" | "plain") || "dot";
+    return (localStorage.getItem("pegon_ga_style") as "dot" | "plain") || "plain";
   });
   const [pegonNgStyle, setPegonNgStyle] = useState<"dot" | "plain">(() => {
-    return (localStorage.getItem("pegon_ng_style") as "dot" | "plain") || "dot";
+    return (localStorage.getItem("pegon_ng_style") as "dot" | "plain") || "plain";
   });
   const [pegonPStyle, setPegonPStyle] = useState<"dot" | "plain">(() => {
-    return (localStorage.getItem("pegon_p_style") as "dot" | "plain") || "dot";
+    return (localStorage.getItem("pegon_p_style") as "dot" | "plain") || "plain";
+  });
+  const [pegonNyStyle, setPegonNyStyle] = useState<"ya" | "ya_dot" | "nya">(() => {
+    return (localStorage.getItem("pegon_ny_style") as "ya" | "ya_dot" | "nya") || "ya";
   });
   const [customMappings, setCustomMappings] = useState<CustomMapping[]>([]);
   const [latinInput, setLatinInput] = useState("");
+  const [quranHaditsResults, setQuranHaditsResults] = useState<Record<string, {
+    arabic: string;
+    reference: string;
+    explanation: string;
+    loading: boolean;
+    error?: string;
+  }>>({});
   const [fontSize, setFontSize] = useState(28);
   const [selectedFont, setSelectedFont] = useState("Traditional Arabic");
   const [direction, setDirection] = useState<"latin-to-pegon" | "pegon-to-latin">("latin-to-pegon");
   const [isListening, setIsListening] = useState(false);
+  const [micLang, setMicLang] = useState<"id-ID" | "ar-SA" | "auto">("auto");
   
   // Interactive debugger state
   const [selectedWordResult, setSelectedWordResult] = useState<WordConversionResult | null>(null);
@@ -86,6 +97,17 @@ export default function App() {
 
   // Local storage history state
   const [history, setHistory] = useState<TranslationItem[]>([]);
+
+  // Google Sheets integration state
+  const [sheetClientId, setSheetClientId] = useState(() => localStorage.getItem("aragon_sheets_client_id") || "");
+  const [sheetSpreadsheetId, setSheetSpreadsheetId] = useState(() => localStorage.getItem("aragon_spreadsheet_id") || "");
+  const [sheetsAccessToken, setSheetsAccessToken] = useState<string | null>(() => localStorage.getItem("aragon_sheets_token") || null);
+  const [sheetsTokenExpiry, setSheetsTokenExpiry] = useState<number | null>(() => {
+    const val = localStorage.getItem("aragon_sheets_token_expiry");
+    return val ? parseInt(val) : null;
+  });
+  const [isSyncingAll, setIsSyncingAll] = useState(false);
+
   const [toastMessage, setToastMessage] = useState("");
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; show: boolean; hasSelection: boolean; selectionText: string } | null>(null);
 
@@ -118,6 +140,8 @@ export default function App() {
         console.error("Speech Recognition Error:", event.error);
         if (event.error === "not-allowed") {
           showToast("Akses mikrofon ditolak oleh browser.");
+        } else if (event.error === "no-speech") {
+          showToast("Tidak ada ucapan yang terdeteksi.");
         } else {
           showToast(`Mikrofon error: ${event.error}`);
         }
@@ -142,8 +166,10 @@ export default function App() {
       recognitionRef.current.stop();
     } else {
       try {
+        const activeMicLang = micLang === "auto" ? (direction === "pegon-to-latin" ? "ar-SA" : "id-ID") : micLang;
+        recognitionRef.current.lang = activeMicLang;
         recognitionRef.current.start();
-        showToast("Mikrofon AKTIF. Silakan berbicara...");
+        showToast(`Mikrofon AKTIF (${activeMicLang === "ar-SA" ? "Bahasa Arab" : "Bahasa Indonesia"}). Silakan berbicara...`);
       } catch (e) {
         console.error(e);
       }
@@ -153,14 +179,18 @@ export default function App() {
   // Load preset on change or initial mount with automatic 'g', 'ng', and 'p' migration to correct style if needed
   useEffect(() => {
     const saved = localStorage.getItem(`aksara_rules_${preset}`);
-    const gaStyle = (localStorage.getItem("pegon_ga_style") as "dot" | "plain") || "dot";
+    const gaStyle = (localStorage.getItem("pegon_ga_style") as "dot" | "plain") || "plain";
     const expectedArabic = gaStyle === "dot" ? "ࢴ" : "ك";
 
-    const ngStyle = (localStorage.getItem("pegon_ng_style") as "dot" | "plain") || "dot";
+    const ngStyle = (localStorage.getItem("pegon_ng_style") as "dot" | "plain") || "plain";
     const expectedNgArabic = ngStyle === "dot" ? "ڠ" : "ع";
 
-    const pStyle = (localStorage.getItem("pegon_p_style") as "dot" | "plain") || "dot";
+    const pStyle = (localStorage.getItem("pegon_p_style") as "dot" | "plain") || "plain";
     const expectedPArabic = pStyle === "dot" ? "ڤ" : "ف";
+
+    const nyStyle = (localStorage.getItem("pegon_ny_style") as "ya" | "ya_dot" | "nya") || "ya";
+    const expectedNyArabic = nyStyle === "ya" ? "ي" : nyStyle === "ya_dot" ? "ۑ" : "ڽ";
+    const expectedNyDesc = nyStyle === "ya" ? "Huruf Ya polos untuk Ny" : nyStyle === "ya_dot" ? "Huruf Ya dengan tiga titik di bawah untuk Ny" : "Huruf Nya (3 titik di atas) untuk Ny";
     
     if (saved) {
       try {
@@ -194,6 +224,16 @@ export default function App() {
                 ...m,
                 arabic: expectedPArabic,
                 description: pStyle === "dot" ? "Pê (Fa bertitik 3)" : "Huruf Fa polos untuk P"
+              };
+            }
+          }
+          if (m.latin === "ny" && preset === "pegon") {
+            if (m.arabic !== expectedNyArabic) {
+              migrated = true;
+              return {
+                ...m,
+                arabic: expectedNyArabic,
+                description: expectedNyDesc
               };
             }
           }
@@ -236,17 +276,55 @@ export default function App() {
     };
   }, []);
 
+  // Google Sheets OAuth redirect detection inside the popup window
+  useEffect(() => {
+    if (window.opener && window.location.hash) {
+      const hash = window.location.hash.substring(1);
+      const params = new URLSearchParams(hash);
+      const token = params.get("access_token");
+      if (token) {
+        window.opener.postMessage({ type: "OAUTH2_SHEETS_SUCCESS", token }, "*");
+        window.close();
+      }
+    }
+  }, []);
+
+  // Listen to message from OAuth popup on the parent window
+  useEffect(() => {
+    const handleSheetsMessage = (event: MessageEvent) => {
+      const origin = event.origin;
+      if (!origin.endsWith(".run.app") && !origin.includes("localhost")) {
+        return;
+      }
+      if (event.data?.type === "OAUTH2_SHEETS_SUCCESS") {
+        const receivedToken = event.data.token;
+        setSheetsAccessToken(receivedToken);
+        localStorage.setItem("aragon_sheets_token", receivedToken);
+        const expiry = Date.now() + 3500 * 1000;
+        setSheetsTokenExpiry(expiry);
+        localStorage.setItem("aragon_sheets_token_expiry", expiry.toString());
+        showToast("Berhasil menghubungkan Google Sheets!");
+      }
+    };
+    window.addEventListener("message", handleSheetsMessage);
+    return () => window.removeEventListener("message", handleSheetsMessage);
+  }, []);
+
   const loadDefaultPreset = (targetPreset: PresetType) => {
     let defaultList = targetPreset === "jawi" ? DEFAULT_JAWI_MAPPINGS : DEFAULT_PEGON_MAPPINGS;
     if (targetPreset === "pegon") {
-      const gaStyle = (localStorage.getItem("pegon_ga_style") as "dot" | "plain") || "dot";
+      const gaStyle = (localStorage.getItem("pegon_ga_style") as "dot" | "plain") || "plain";
       const expectedArabic = gaStyle === "dot" ? "ࢴ" : "ك";
 
-      const ngStyle = (localStorage.getItem("pegon_ng_style") as "dot" | "plain") || "dot";
+      const ngStyle = (localStorage.getItem("pegon_ng_style") as "dot" | "plain") || "plain";
       const expectedNgArabic = ngStyle === "dot" ? "ڠ" : "ع";
 
-      const pStyle = (localStorage.getItem("pegon_p_style") as "dot" | "plain") || "dot";
+      const pStyle = (localStorage.getItem("pegon_p_style") as "dot" | "plain") || "plain";
       const expectedPArabic = pStyle === "dot" ? "ڤ" : "ف";
+
+      const nyStyle = (localStorage.getItem("pegon_ny_style") as "ya" | "ya_dot" | "nya") || "ya";
+      const expectedNyArabic = nyStyle === "ya" ? "ي" : nyStyle === "ya_dot" ? "ۑ" : "ڽ";
+      const expectedNyDesc = nyStyle === "ya" ? "Huruf Ya polos untuk Ny" : nyStyle === "ya_dot" ? "Huruf Ya dengan tiga titik di bawah untuk Ny" : "Huruf Nya (3 titik di atas) untuk Ny";
 
       defaultList = defaultList.map(m => {
         if (m.latin === "g") {
@@ -268,6 +346,13 @@ export default function App() {
             ...m,
             arabic: expectedPArabic,
             description: pStyle === "dot" ? "Pê (Fa bertitik 3)" : "Huruf Fa polos untuk P"
+          };
+        }
+        if (m.latin === "ny") {
+          return {
+            ...m,
+            arabic: expectedNyArabic,
+            description: expectedNyDesc
           };
         }
         return m;
@@ -296,7 +381,7 @@ export default function App() {
   };
 
   const handleCopyAllText = () => {
-    const rawContent = useAI ? aiResult : arabicText;
+    const rawContent = finalArabicOutput;
     if (rawContent) {
       navigator.clipboard.writeText(rawContent);
       showToast("Berhasil menyalin seluruh hasil translasi!");
@@ -319,7 +404,7 @@ export default function App() {
   };
 
   const handleExportDOCX = async () => {
-    const rawContent = useAI ? aiResult : arabicText;
+    const rawContent = finalArabicOutput;
     if (!latinInput.trim() || !rawContent) {
       alert("Masukkan kalimat terlebih dahulu sebelum mengekspor.");
       return;
@@ -483,6 +568,30 @@ export default function App() {
     ? transliteratePegonToLatinText(latinInput, customMappings)
     : transliterateText(latinInput, preset, customMappings);
 
+  // Computed helper to substitute lines starting with ">" with beautiful auto-resolved Quran/Hadits scriptures
+  const getProcessedArabicText = () => {
+    if (direction === "pegon-to-latin") return arabicText;
+    
+    return latinInput.split("\n").map(line => {
+      const trimmed = line.trim();
+      if (trimmed.startsWith(">")) {
+        const res = quranHaditsResults[trimmed];
+        if (res) {
+          if (res.loading) return `(Sedang memuat dalil Al-Qur'an/Hadits...)`;
+          if (res.error) return `(Gagal memuat: ${res.error})`;
+          return res.arabic;
+        }
+        return `(Memproses rujukan otomatis: ${trimmed.slice(1).trim()}...)`;
+      }
+      return line.split(/(\s+)/).map(segment => {
+        if (!segment.trim()) return segment;
+        return transliterateWord(segment, preset, customMappings).arabic;
+      }).join("");
+    }).join("\n");
+  };
+
+  const finalArabicOutput = useAI ? aiResult : getProcessedArabicText();
+
   // Trigger AI Assisted Translation using Server-Side endpoint
   const handleAITranslate = async () => {
     if (!latinInput.trim()) {
@@ -537,6 +646,78 @@ export default function App() {
       return () => clearTimeout(handler);
     }
   }, [useAI, preset, direction]);
+
+  // Automatic background scanner for Quran / Hadits queries starting with ">" in Realtime mode
+  useEffect(() => {
+    if (direction === "pegon-to-latin") return;
+    
+    const lines = latinInput.split("\n");
+    const queriesToFetch: string[] = [];
+
+    lines.forEach(line => {
+      const trimmed = line.trim();
+      if (trimmed.startsWith(">")) {
+        const queryVal = trimmed.slice(1).trim();
+        // Only trigger fetch if we have query content and it wasn't fetched or loading already
+        if (queryVal.length >= 2 && !quranHaditsResults[trimmed]) {
+          queriesToFetch.push(trimmed);
+        }
+      }
+    });
+
+    if (queriesToFetch.length === 0) return;
+
+    // Debounce to prevent spamming while typing
+    const timer = setTimeout(() => {
+      queriesToFetch.forEach(async (rawLine) => {
+        const queryText = rawLine.slice(1).trim();
+        
+        // Mark as loading first
+        setQuranHaditsResults(prev => ({
+          ...prev,
+          [rawLine]: { arabic: "", reference: "", explanation: "", loading: true }
+        }));
+
+        try {
+          const response = await fetch("/api/quran-hadits", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ query: queryText })
+          });
+
+          if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.error || "Gagal mengambil data dari server.");
+          }
+
+          const data = await response.json();
+          setQuranHaditsResults(prev => ({
+            ...prev,
+            [rawLine]: {
+              arabic: data.arabic,
+              reference: data.reference,
+              explanation: data.explanation,
+              loading: false
+            }
+          }));
+          showToast(`Berhasil memuat: ${data.reference}`);
+        } catch (err: any) {
+          setQuranHaditsResults(prev => ({
+            ...prev,
+            [rawLine]: {
+              arabic: "",
+              reference: "",
+              explanation: "",
+              loading: false,
+              error: err.message || "Gagal memuat"
+            }
+          }));
+        }
+      });
+    }, 650);
+
+    return () => clearTimeout(timer);
+  }, [latinInput, direction]);
 
   // Save Rule to state & localstorage
   const handleAddRule = (e: React.FormEvent) => {
@@ -593,9 +774,108 @@ export default function App() {
     showToast(`Referensi "${label}" berhasil dihapus.`);
   };
 
+  // Extract spreadsheet ID from url if provided
+  const extractSpreadsheetId = (urlOrId: string) => {
+    const match = urlOrId.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+    return match ? match[1] : urlOrId.trim();
+  };
+
+  // Append a single row of stats to Google Sheets (routed via backend)
+  const appendTranslationToSheet = async (item: TranslationItem) => {
+    const spreadsheetId = extractSpreadsheetId(sheetSpreadsheetId);
+    if (!sheetsAccessToken || !spreadsheetId) return;
+
+    try {
+      const row = [
+        item.timestamp || new Date().toLocaleString("id-ID"),
+        item.latin,
+        item.arabic,
+        direction === "pegon-to-latin" ? "Arab Pegon ➔ Latin" : "Latin ➔ Arab",
+        item.preset === "jawi" ? "Arab Melayu (Jawi)" : "Arab Pegon",
+        item.latin.length.toString(),
+        item.latin.trim().split(/\s+/).filter(Boolean).length.toString(),
+        item.notes || "Mesin Aturan"
+      ];
+
+      const response = await fetch("/api/sheets/append", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${sheetsAccessToken}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          spreadsheetId,
+          values: [row]
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Sheets API error:", errorText);
+        showToast("Sinkronisasi otomatis Google Sheets gagal.");
+      } else {
+        showToast("Statistik transliterasi berhasil disimpan ke Google Sheets via back-end!");
+      }
+    } catch (error) {
+      console.error("Gagal menyimpan ke Google Sheets via back-end:", error);
+      showToast("Gagal menyimpan statistik ke Google Sheets. Silakan periksa koneksi.");
+    }
+  };
+
+  // Sync entire history to Google Sheets in bulk (routed via backend)
+  const syncAllHistoryToSheet = async () => {
+    const spreadsheetId = extractSpreadsheetId(sheetSpreadsheetId);
+    if (!sheetsAccessToken || !spreadsheetId) {
+      alert("Harap hubungkan akun Google Sheets dan isi ID Spreadsheet terlebih dahulu di panel sinkronisasi.");
+      return;
+    }
+
+    if (history.length === 0) {
+      alert("Tidak ada riwayat transliterasi untuk disinkronkan.");
+      return;
+    }
+
+    setIsSyncingAll(true);
+    try {
+      const rows = history.map(item => [
+        item.timestamp || new Date().toLocaleString("id-ID"),
+        item.latin,
+        item.arabic,
+        direction === "pegon-to-latin" ? "Arab Pegon ➔ Latin" : "Latin ➔ Arab",
+        item.preset === "jawi" ? "Arab Melayu (Jawi)" : "Arab Pegon",
+        item.latin.length.toString(),
+        item.latin.trim().split(/\s+/).filter(Boolean).length.toString(),
+        item.notes || "Mesin Aturan"
+      ]);
+
+      const response = await fetch("/api/sheets/append", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${sheetsAccessToken}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          spreadsheetId,
+          values: rows
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      showToast(`Sukses mengunggah ${history.length} baris riwayat ke Google Sheets via back-end!`);
+    } catch (error: any) {
+      console.error("Gagal mengunggah seluruh riwayat ke Google Sheets via back-end:", error);
+      alert("Gagal mengunggah riwayat lewat back-end: " + (error.message || error));
+    } finally {
+      setIsSyncingAll(false);
+    }
+  };
+
   // Save current translation to history list
   const handleSaveToHistory = () => {
-    const activeOutput = useAI ? aiResult : arabicText;
+    const activeOutput = finalArabicOutput;
     if (!latinInput.trim() || !activeOutput.trim()) {
       alert("Masukkan kalimat terlebih dahulu untuk disimpan.");
       return;
@@ -614,6 +894,14 @@ export default function App() {
     setHistory(updated);
     localStorage.setItem("aksara_history", JSON.stringify(updated));
     showToast("Hasil transliterasi berhasil disimpan ke Riwayat!");
+
+    // If Google Sheets Sync is connected, save single record automatically
+    if (sheetsAccessToken && sheetSpreadsheetId) {
+      const isExpired = sheetsTokenExpiry && Date.now() > sheetsTokenExpiry;
+      if (!isExpired) {
+        appendTranslationToSheet(item);
+      }
+    }
   };
 
   // Delete history item
@@ -623,6 +911,54 @@ export default function App() {
     localStorage.setItem("aksara_history", JSON.stringify(updated));
     showToast("Riwayat berhasil dihapus.");
   };
+
+  // Auto-Save history when user stops typing (Debounced for 2.5 seconds)
+  useEffect(() => {
+    // Check if we have valid completed input and translations
+    const cleanLatin = latinInput.trim();
+    const activeOutput = finalArabicOutput ? finalArabicOutput.trim() : "";
+    if (!cleanLatin || !activeOutput) return;
+
+    // If AI translation is loading, don't save yet
+    if (useAI && aiLoading) return;
+
+    // Avoid saving short temporary fragments of text
+    if (cleanLatin.length < 3) return;
+
+    const timer = setTimeout(() => {
+      // Create new history item
+      const item: TranslationItem = {
+        id: `hist_${Date.now()}`,
+        timestamp: new Date().toLocaleTimeString("id-ID") + " " + new Date().toLocaleDateString("id-ID"),
+        latin: cleanLatin,
+        arabic: activeOutput,
+        preset: preset,
+        notes: useAI ? `Asisten Cerdas AI (Otomatis)` : `Mesin Aturan (Otomatis)`
+      };
+
+      setHistory(prev => {
+        // Prevent saving if the topmost history item already matches this text to avoid duplicates
+        if (prev.length > 0 && prev[0].latin.trim() === cleanLatin) {
+          return prev;
+        }
+        const updated = [item, ...prev];
+        localStorage.setItem("aksara_history", JSON.stringify(updated));
+        
+        // If Google Sheets Sync is connected, save single record automatically (routed via backend)
+        if (sheetsAccessToken && sheetSpreadsheetId) {
+          const isExpired = sheetsTokenExpiry && Date.now() > sheetsTokenExpiry;
+          if (!isExpired) {
+            appendTranslationToSheet(item);
+          }
+        }
+        
+        return updated;
+      });
+
+    }, 2500);
+
+    return () => clearTimeout(timer);
+  }, [latinInput, finalArabicOutput, useAI, aiLoading, preset, sheetsAccessToken, sheetSpreadsheetId, sheetsTokenExpiry]);
 
   // Copy current result to clipboard
   const copyToClipboard = (textToCopy: string) => {
@@ -702,11 +1038,11 @@ export default function App() {
               <span className="text-white font-bold text-xl">A</span>
             </div>
             <div>
-              <h1 className="text-lg font-bold text-slate-800 leading-tight">
-                Aksara Nusantara
+              <h1 className="text-xl font-extrabold text-slate-900 leading-none tracking-tight font-display">
+                aragon
               </h1>
-              <p className="text-xs text-slate-500">
-                Transliterasi Aksara Arab Pegon Real-time
+              <p className="text-xs text-slate-500 mt-1 font-medium italic">
+                aplikasi arab pegon
               </p>
             </div>
           </div>
@@ -785,18 +1121,93 @@ export default function App() {
         
         {/* LEFT COLUMN: Input Latin & Controls (50% side-by-side) */}
         <div className="space-y-6">
-          
           {/* Main Input Segment Card */}
           <div className="bg-white rounded-2xl border border-slate-200/95 shadow-sm p-6 space-y-4.5">
             
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center pb-2 border-b border-slate-100">
               <div className="flex items-center space-x-2.5">
                 <FileText className="w-5 h-5 text-indigo-600" />
                 <h2 className="font-display font-semibold text-lg text-slate-900">
                   {direction === "pegon-to-latin" ? "Aksara Arab Pegon" : "Teks Latin Indonesia"}
                 </h2>
               </div>
-              
+            </div>
+
+            {/* Quran / Hadits auto hint */}
+            {direction !== "pegon-to-latin" && (
+              <div className="bg-gradient-to-r from-indigo-50/70 to-blue-50/40 p-4.5 rounded-xl border border-indigo-100/80 space-y-3 shadow-xs">
+                <div className="flex items-center space-x-2 text-indigo-800 font-bold text-xs sm:text-[13px]">
+                  <HelpCircle className="w-4.5 h-4.5 text-indigo-600" />
+                  <span>Petunjuk Memunculkan Ayat Al-Qur'an & Hadits</span>
+                </div>
+                <p className="text-slate-600 leading-relaxed text-xs">
+                  Aplikasi mendukung pemuatan otomatis teks Arab orisinil lengkap berharakat penuh. Ketik baris baru diawali tanda <strong className="font-mono bg-white px-1.5 py-0.5 rounded border border-indigo-200 text-indigo-700 font-bold">&gt;</strong> diikuti rujukan surah & ayat atau kata kunci hadits:
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px] font-mono text-slate-750 bg-white/80 p-3 rounded-xl border border-slate-100">
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] text-indigo-600 font-bold block uppercase tracking-wider font-sans">Contoh Al-Qur'an:</span>
+                    <div className="bg-slate-50 px-2 py-1 rounded border border-slate-100/80"><span className="text-indigo-500 font-bold font-mono">&gt; </span>Al-Baqarah 183</div>
+                    <div className="bg-slate-50 px-2 py-1 rounded border border-slate-100/80"><span className="text-indigo-500 font-bold font-mono">&gt; </span>3:104</div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] text-indigo-600 font-bold block uppercase tracking-wider font-sans">Contoh Hadits:</span>
+                    <div className="bg-slate-50 px-2 py-1 rounded border border-slate-100/80"><span className="text-indigo-500 font-bold font-mono">&gt; </span>HR Bukhari tentang niat</div>
+                    <div className="bg-slate-50 px-2 py-1 rounded border border-slate-100/80"><span className="text-indigo-500 font-bold font-mono">&gt; </span>HR Muslim tentang takwa</div>
+                  </div>
+                </div>
+                <div className="text-[10px] text-slate-500 leading-relaxed flex items-center gap-1.5">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-slate-400 animate-ping"></span>
+                  <span>* Sumber rujukan Al-Qur'an otomatis ditampilkan murni menggunakan aksara Arab baku tanpa kata "Surat/Surah" di depan nama surah (contoh: البقرة: ١٨٣).</span>
+                </div>
+              </div>
+            )}
+
+            {/* Toolbar pilihan bahasa & mic di atas kotak */}
+            <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200/60">
+              <div className="flex items-center space-x-2">
+                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span className="text-xs font-semibold text-slate-600">Input Suara (Mic):</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <select
+                  value={micLang}
+                  onChange={(e) => setMicLang(e.target.value as "id-ID" | "ar-SA" | "auto")}
+                  className="bg-white hover:bg-slate-100 border border-slate-200 rounded-lg py-1 px-2.5 text-xs font-semibold text-slate-705 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer h-8 shadow-xs transition-all flex-1 sm:flex-none"
+                  title="Pilih bahasa input suara mikrofon"
+                >
+                  <option value="auto">🎤 Auto ({direction === "pegon-to-latin" ? "AR" : "ID"})</option>
+                  <option value="id-ID">🇮🇩 Indonesia</option>
+                  <option value="ar-SA">🇸🇦 Arab (العربية)</option>
+                </select>
+                
+                <button
+                  type="button"
+                  onClick={toggleListening}
+                  className={`flex items-center justify-center space-x-1.5 py-1 px-3.5 h-8 rounded-lg border font-bold text-xs transition-all cursor-pointer shadow-xs flex-1 sm:flex-none ${
+                    isListening
+                      ? "bg-red-500 border-red-600 text-white animate-pulse"
+                      : "bg-white hover:bg-slate-50 border-slate-200 text-slate-700 hover:text-slate-800"
+                  }`}
+                  title={isListening 
+                    ? "Hentikan perekaman suara" 
+                    : `Mulai input suara (Microphone)`
+                  }
+                >
+                  {isListening ? (
+                    <>
+                      <MicOff className="w-3.5 h-3.5 text-white animate-pulse" />
+                      <span>Hentikan</span>
+                    </>
+                  ) : (
+                    <>
+                      <Mic className="w-3.5 h-3.5 text-indigo-600 animate-pulse" />
+                      <span>Input Suara</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
               {/* Examples selection helper */}
               <div className="hidden">
                 <span className="text-slate-400 text-xs hidden sm:inline">Pemuat Contoh:</span>
@@ -809,8 +1220,8 @@ export default function App() {
                         if (direction === "pegon-to-latin") {
                           const pegonExamples = [
                             "سايا سداڠ بلاجر منوليس كاليمات بهاسا ايندونيسيا دڠن سيستيم اتوران ايجاءان اراب ڤيࢴون.",
-                            "جماعة مسلمين دان مسلمة ملاكسناكن عبادة صلاة برجماعة دمسجد اونتوق برعبادة كڤدا الله.",
-                            "بكس بارڠ انتيك دان بكل ماكنان دبيلي اوليه باڤق برساما ايبو كمارين سوري."
+                            "جماعة مسلمين دان مسلمة ملاكسناكن عبادة صلاة برجماعة دمسجد اونtوق برعبادة كڤدا الله.",
+                            "بكس بارڠ انتيك دان bakal ماكنان دبيلي اوليه باڤق برساما ايبو كمارين سوري."
                           ];
                           setLatinInput(pegonExamples[idx]);
                           showToast(`Dimuat: Contoh Arab Pegon ${idx + 1}`);
@@ -830,13 +1241,12 @@ export default function App() {
                   </select>
                 </div>
               </div>
-            </div>
 
             {/* Input Character Textbox */}
             <div className="relative">
               <textarea
                 id="input-latin-text"
-                className={`w-full h-54 p-4 pr-12 text-slate-900 bg-slate-50/50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-505/20 focus:border-indigo-600 focus:outline-none transition-all placeholder:text-slate-400 focus:bg-white resize-none text-base font-medium ${
+                className={`w-full h-54 p-4 text-slate-900 bg-slate-50/50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-505/20 focus:border-indigo-600 focus:outline-none transition-all placeholder:text-slate-400 focus:bg-white resize-none text-base font-medium ${
                   direction === "pegon-to-latin" ? "text-right font-arabic" : "text-left"
                 }`}
                 style={{
@@ -852,22 +1262,18 @@ export default function App() {
                 onChange={(e) => setLatinInput(e.target.value)}
               />
               
-              {/* Floating Mic and MicOff button */}
-              <div className="absolute top-3.5 right-3.5 flex items-center space-x-1.5 z-10">
+              {latinInput && (
                 <button
                   type="button"
-                  onClick={toggleListening}
-                  className={`p-2 rounded-lg border transition-all cursor-pointer shadow-sm ${
-                    isListening
-                      ? "bg-red-500 border-red-600 text-white animate-pulse"
-                      : "bg-white hover:bg-slate-100 border-slate-200 text-slate-500 hover:text-slate-800"
-                  }`}
-                  title={isListening ? "Hentikan perekaman suara" : "Mulai input suara (Microphone - Bahasa Indonesia)"}
+                  onClick={() => setLatinInput("")}
+                  className="absolute bottom-3 left-3 bg-white/95 hover:bg-red-50 border border-slate-200 hover:border-red-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-500 hover:text-red-600 transition-all cursor-pointer shadow-xs flex items-center space-x-1.5 focus:outline-none focus:ring-2 focus:ring-red-500/20"
+                  title="Bersihkan teks input"
                 >
-                  {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                  <Trash2 className="w-3.5 h-3.5 text-slate-400 group-hover:text-red-500" />
+                  <span>Bersihkan</span>
                 </button>
-              </div>
-
+              )}
+              
               <div className="absolute bottom-3 right-3 text-slate-400 text-xs font-mono">
                 {latinInput.length} karakter | {latinInput.split(/\s+/).filter(Boolean).length} kata
               </div>
@@ -1017,11 +1423,32 @@ export default function App() {
                     onChange={(e) => setSelectedFont(e.target.value)}
                     disabled={direction === "pegon-to-latin"}
                   >
-                    <option value="Traditional Arabic">Traditional Arabic</option>
-                    <option value="KFGQPC Uthman Taha Naskh">KFGQPC Uthman Taha</option>
-                    <option value="Amiri">Font Amiri</option>
-                    <option value="Noto Naskh Arabic">Noto Naskh</option>
-                    <option value="Scheherazade New">Scheherazade</option>
+                    <optgroup label="Web & Google Fonts (Impor)">
+                      <option value="Traditional Arabic">Traditional Arabic</option>
+                      <option value="KFGQPC Uthman Taha Naskh">KFGQPC Uthman Taha</option>
+                      <option value="Amiri">Font Amiri</option>
+                      <option value="Noto Naskh Arabic">Noto Naskh</option>
+                      <option value="Scheherazade New">Scheherazade</option>
+                    </optgroup>
+                    <optgroup label="Windows System Fonts (Lokal)">
+                      <option value="Segoe UI Arabic">Segoe UI Arabic</option>
+                      <option value="Simplified Arabic">Simplified Arabic</option>
+                      <option value="Sakkal Majalla">Sakkal Majalla</option>
+                      <option value="Microsoft Uighur">Microsoft Uighur</option>
+                      <option value="Arabic Typesetting">Arabic Typesetting</option>
+                    </optgroup>
+                    <optgroup label="macOS / iOS System Fonts (Lokal)">
+                      <option value="Geeza Pro">Geeza Pro</option>
+                      <option value="Damascus">Damascus</option>
+                      <option value="Muna">Muna</option>
+                      <option value="Baghdad">Baghdad</option>
+                      <option value="Al Bayan">Al Bayan</option>
+                    </optgroup>
+                    <optgroup label="Sistem / Font Umum">
+                      <option value="system-ui">Default Device Font (System UI)</option>
+                      <option value="sans-serif">Standard Sans-Serif</option>
+                      <option value="serif">Standard Serif</option>
+                    </optgroup>
                   </select>
                 </div>
 
@@ -1117,6 +1544,39 @@ export default function App() {
                     <option value="plain">ف (Fa)</option>
                   </select>
                 </div>
+
+                <div className="flex items-center px-1 border-s border-slate-200 ps-1.5">
+                  <span className="text-[10px] uppercase font-mono text-slate-400 mr-1">Huruf ny:</span>
+                  <select
+                    className="bg-white border border-slate-200 rounded py-0.5 px-1 text-xs text-slate-700 font-bold focus:outline-none focus:ring-1 focus:ring-indigo-505 cursor-pointer"
+                    value={pegonNyStyle}
+                    onChange={(e) => {
+                      const val = e.target.value as "ya" | "ya_dot" | "nya";
+                      setPegonNyStyle(val);
+                      localStorage.setItem("pegon_ny_style", val);
+                      
+                      // Update current customMappings
+                      setCustomMappings((prev) => 
+                        prev.map((m) => {
+                          if (m.latin === "ny") {
+                            return {
+                              ...m,
+                              arabic: val === "ya" ? "ي" : val === "ya_dot" ? "ۑ" : "ڽ",
+                              description: val === "ya" ? "Huruf Ya polos untuk Ny" : val === "ya_dot" ? "Huruf Ya dengan tiga titik di bawah untuk Ny" : "Huruf Nya (3 titik di atas) untuk Ny"
+                            };
+                          }
+                          return m;
+                        })
+                      );
+                      const displayLabel = val === "ya" ? "ي (Ya Polos)" : val === "ya_dot" ? "ۑ (Ya 3 Titik Bawah)" : "ڽ (Nya 3 Titik Atas)";
+                      showToast(`Huruf Ny (ny) diubah ke: ${displayLabel}`);
+                    }}
+                  >
+                    <option value="ya">ي (Ya Polos)</option>
+                    <option value="ya_dot">ۑ (Ya 3 Titik)</option>
+                    <option value="nya">ڽ (Nya)</option>
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -1171,38 +1631,78 @@ export default function App() {
                     ) : (
                       // Interactive Spans for Rule-Based Realtime debug feedback
                       latinInput.trim() ? (
-                        latinInput.split("\n").map((line, lIdx) => (
-                          <div key={lIdx} className="mb-2">
-                            {line.split(/(\s+)/).map((segment, sIdx) => {
-                              if (!segment.trim()) return segment; // whitespace
-                              
-                              // Translate single word and cache result for clicking
-                              const wordRes = direction === "pegon-to-latin"
-                                ? transliteratePegonToLatinWord(segment, customMappings)
-                                : transliterateWord(segment, preset, customMappings);
-                              
-                              const isSelected = selectedWordResult?.word === wordRes.word;
-                              
+                        latinInput.split("\n").map((line, lIdx) => {
+                          const trimmed = line.trim();
+                          if (trimmed.startsWith(">")) {
+                            const res = quranHaditsResults[trimmed];
+                            if (res) {
+                              if (res.loading) {
+                                return (
+                                  <div key={lIdx} className="mb-3 py-1 flex items-center justify-end gap-2 text-xs font-sans text-slate-400 italic">
+                                    <span>Sedang memuat dalil Al-Qur'an/Hadits...</span>
+                                    <span className="w-3.5 h-3.5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></span>
+                                  </div>
+                                );
+                              }
+                              if (res.error) {
+                                return (
+                                  <div key={lIdx} className="mb-3 py-1 text-right text-xs font-sans text-red-500">
+                                    Gagal memuat rujukan "{trimmed.slice(1).trim()}": {res.error}
+                                  </div>
+                                );
+                              }
                               return (
-                                <span
-                                  key={sIdx}
-                                  className={`inline-block px-1 rounded cursor-help transition-all ${
-                                    isSelected 
-                                      ? "bg-amber-200 text-slate-900 scale-105 shadow-sm font-sans" 
-                                      : "hover:bg-amber-100 hover:text-slate-900 border-b border-transparent hover:border-amber-300"
-                                  }`}
-                                  style={{
-                                    fontFamily: direction === "pegon-to-latin" ? "inherit" : `"${selectedFont}", serif`
-                                  }}
-                                  onClick={() => setSelectedWordResult(wordRes)}
-                                  title="Klik untuk melihat detail ejaan"
-                                >
-                                  {wordRes.arabic}
-                                </span>
+                                <div key={lIdx} className="mb-3 py-2 text-right">
+                                  <span 
+                                    className="inline-block bg-indigo-50/50 hover:bg-indigo-50 border border-indigo-100/80 px-3.5 py-2 rounded-xl text-3xl font-arabic font-bold text-indigo-950 transition-all cursor-pointer shadow-sm selection:bg-amber-100"
+                                    style={{ fontFamily: `"${selectedFont}", serif` }}
+                                    title={`Otomatis termuat dari database rujukan sahih: ${res.reference}`}
+                                  >
+                                    {res.arabic}
+                                  </span>
+                                </div>
                               );
-                            })}
-                          </div>
-                        ))
+                            }
+                            return (
+                              <div key={lIdx} className="mb-3 py-1 text-right text-xs font-sans text-slate-400 italic">
+                                Menunggu pencarian "{trimmed.slice(1).trim()}"...
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div key={lIdx} className="mb-2">
+                              {line.split(/(\s+)/).map((segment, sIdx) => {
+                                if (!segment.trim()) return segment; // whitespace
+                                
+                                // Translate single word and cache result for clicking
+                                const wordRes = direction === "pegon-to-latin"
+                                  ? transliteratePegonToLatinWord(segment, customMappings)
+                                  : transliterateWord(segment, preset, customMappings);
+                                
+                                const isSelected = selectedWordResult?.word === wordRes.word;
+                                
+                                return (
+                                  <span
+                                    key={sIdx}
+                                    className={`inline-block px-1 rounded cursor-help transition-all ${
+                                      isSelected 
+                                        ? "bg-amber-200 text-slate-900 scale-105 shadow-sm font-sans" 
+                                        : "hover:bg-amber-100 hover:text-slate-900 border-b border-transparent hover:border-amber-300"
+                                    }`}
+                                    style={{
+                                      fontFamily: direction === "pegon-to-latin" ? "inherit" : `"${selectedFont}", serif`
+                                    }}
+                                    onClick={() => setSelectedWordResult(wordRes)}
+                                    title="Klik untuk melihat detail ejaan"
+                                  >
+                                    {wordRes.arabic}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          );
+                        })
                       ) : (
                         <span className="text-slate-300 font-sans italic text-base">
                           {direction === "pegon-to-latin"
@@ -1215,10 +1715,10 @@ export default function App() {
                   </div>
 
                   {/* Absolute Floating Copy Button inside the box for easy copying */}
-                  {(useAI ? aiResult : arabicText) && (
+                  {finalArabicOutput && (
                     <button
                       onClick={() => {
-                        const content = useAI ? aiResult : arabicText;
+                        const content = finalArabicOutput;
                         if (content) {
                           copyToClipboard(content);
                         }
@@ -1249,10 +1749,10 @@ export default function App() {
             {/* Action Bar */}
             <div className="flex flex-wrap justify-between items-center gap-3 pt-4 border-t border-slate-100 text-xs shrink-0 select-none">
               
-              <div className="flex space-x-2">
+              <div className="flex space-x-2 items-center">
                 <button
                   onClick={() => {
-                    const content = useAI ? aiResult : arabicText;
+                    const content = finalArabicOutput;
                     if (content) {
                       copyToClipboard(content);
                     } else {
@@ -1273,6 +1773,11 @@ export default function App() {
                   <Clock className="w-3.5 h-3.5 text-slate-500" />
                   <span>Simpan Riwayat</span>
                 </button>
+
+                <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-100 flex items-center space-x-1.5 font-medium shadow-sm">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span>Simpan Otomatis Aktif</span>
+                </span>
               </div>
 
               {/* PDF and formatting tools */}
@@ -1572,6 +2077,221 @@ export default function App() {
 
       </section>
 
+      {/* GOOGLE SHEETS INTEGRATION SECTION */}
+      <section className="max-w-7xl mx-auto px-4 md:px-8 mt-8 no-print">
+        <div className="bg-white rounded-3xl border border-slate-200/95 shadow-sm p-6 space-y-6">
+          
+          <div className="flex items-center space-x-3 border-b border-slate-100 pb-4">
+            <div className="p-2 bg-emerald-50 rounded-xl text-emerald-800 border border-emerald-100">
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2m-1 7h-4V6h4v4m-6-4v4H8V6h4M8 12h4v8H8v-8m6 8v-8h4v8h-4" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="font-display font-semibold text-lg text-slate-900">
+                Integrasi & Sinkronisasi Google Sheets
+              </h2>
+              <p className="text-slate-500 text-xs mt-0.5">
+                Simpan statistik frekuensi penggunaan, teks asal Latin, dan hasil transliterasi Arab Pegon/Jawi Anda secara aman di spreadsheet Google Sheets Anda.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            {/* Left Box: Setup and Connection */}
+            <div className="lg:col-span-5 bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
+              <div className="flex items-center space-x-2 border-b border-slate-200 pb-2.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                <h3 className="font-display font-semibold text-sm text-slate-800">
+                  Langkah 1: Konfigurasi Akses Spreadsheet
+                </h3>
+              </div>
+
+              <div className="space-y-3.5">
+                <div>
+                  <label className="block text-slate-500 text-[11px] uppercase font-mono mb-1">
+                    ID Spreadsheet Google Sheets / Kombinasi URL
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs focus:ring-1 focus:ring-emerald-850 focus:outline-none placeholder-slate-400 font-mono"
+                    placeholder="Masukkan Spreadsheet URL atau ID"
+                    value={sheetSpreadsheetId}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSheetSpreadsheetId(val);
+                      localStorage.setItem("aragon_spreadsheet_id", val);
+                    }}
+                  />
+                  <span className="text-[10px] text-slate-400 block mt-1 leading-normal">
+                    * Tempel URL spreadsheet atau temukan id uniknya di antara <code className="bg-slate-100 px-1 py-0.5 rounded font-mono">/d/</code> dan <code className="bg-slate-100 px-1 py-0.5 rounded font-mono">/edit</code> di tautan browser Anda.
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-slate-500 text-[11px] uppercase font-mono mb-1">
+                    Google Client ID (Kredensial OAuth)
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs focus:ring-1 focus:ring-emerald-850 focus:outline-none placeholder-slate-400 font-mono"
+                    placeholder="E.g. 123456-abcdef.apps.googleusercontent.com"
+                    value={sheetClientId}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSheetClientId(val);
+                      localStorage.setItem("aragon_sheets_client_id", val);
+                    }}
+                  />
+                  <span className="text-[10px] text-slate-400 block mt-1 leading-normal">
+                    * Digunakan untuk mengizinkan login aman Anda. Anda dapat membuat Client ID gratis ditenagai oleh Google API Console.
+                  </span>
+                </div>
+
+                <div className="pt-2 border-t border-slate-200 flex flex-col gap-2">
+                  {sheetsAccessToken && (!sheetsTokenExpiry || Date.now() < sheetsTokenExpiry) ? (
+                    <div className="space-y-3">
+                      <div className="bg-emerald-50 text-emerald-900 border border-emerald-200 rounded-xl p-3 text-xs flex items-start space-x-2">
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-bold">Terhubung dengan Sukses!</p>
+                          <p className="text-[10px] text-emerald-700 mt-0.5">
+                            Status: Sesi Google Sheets Aktif. Transliterasi baru yang Anda simpan akan terdokumentasi otomatis ke Sheet.
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setSheetsAccessToken(null);
+                          setSheetsTokenExpiry(null);
+                          localStorage.removeItem("aragon_sheets_token");
+                          localStorage.removeItem("aragon_sheets_token_expiry");
+                          showToast("Koneksi Google Sheets diputus.");
+                        }}
+                        className="w-full py-2.5 bg-red-100 hover:bg-red-200 text-red-700 font-semibold rounded-xl text-xs transition-colors"
+                      >
+                        Putuskan Koneksi Akun Google
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        if (!sheetClientId.trim()) {
+                          alert("Harap isi Google Client ID terlebih dahulu!");
+                          return;
+                        }
+                        const rUri = window.location.origin;
+                        const scopeStr = "https://www.googleapis.com/auth/spreadsheets";
+                        const authUrlForSheets = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(sheetClientId.trim())}&redirect_uri=${encodeURIComponent(rUri)}&response_type=token&scope=${encodeURIComponent(scopeStr)}&prompt=consent`;
+                        
+                        localStorage.setItem("aragon_sheets_client_id", sheetClientId.trim());
+                        const pWindow = window.open(authUrlForSheets, "aragon_sheets_popup", "width=600,height=700");
+                        if (!pWindow) {
+                          alert("Popup login diblokir oleh browser! Harap izinkan pop-up.");
+                        }
+                      }}
+                      className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-colors shadow-sm flex items-center justify-center space-x-1.5"
+                    >
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M21.35 11.1h-9.17v2.73h6.51c-.33 1.56-1.56 2.95-3.18 3.5v2.88h5.15c3.01-2.78 4.75-6.87 4.75-11.83 0-.6-.05-1.2-.16-1.28z" fill="#4285F4"/>
+                        <path d="M12.18 21.43c2.75 0 5.06-.91 6.75-2.48l-5.15-2.88c-.9 1.17-2.31 1.95-3.9 1.95-3.01 0-5.56-2.03-6.47-4.75H2.1v2.98c1.72 3.42 5.25 5.75 9.38 5.75z" fill="#34A853"/>
+                        <path d="M5.71 13.27c-.24-.71-.38-1.48-.38-2.27s.14-1.56.38-2.27V5.75H2.1c-.81 1.62-1.27 3.44-1.27 5.37s.46 3.75 1.27 5.37l3.61-2.22z" fill="#FBBC05"/>
+                        <path d="M12.18 5.4c1.5 0 2.85.52 3.91 1.53l2.93-2.93C17.29 2.48 14.98 1.57 12.18 1.57 8.05 1.57 4.52 3.9 2.8 7.32l3.61 2.22c.91-2.72 3.46-4.75 6.47-4.75z" fill="#EA4335"/>
+                      </svg>
+                      <span>Hubungkan Akun Google Anda</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Right Box: Sync and Mapping guide */}
+            <div className="lg:col-span-7 border border-slate-200 rounded-2xl p-5 space-y-4 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center space-x-2 border-b border-slate-200 pb-2.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                  <h3 className="font-display font-semibold text-sm text-slate-800">
+                    Langkah 2: Kelola Sinkronisasi & Riwayat
+                  </h3>
+                </div>
+
+                <p className="text-xs text-slate-550 mt-3 leading-relaxed">
+                  Semua statistik penggunaan dicatat dalam baris mandiri tanpa menimpa data yang telah ada. Format pemetaan kolom otomatis:
+                </p>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3.5">
+                  {[
+                    { label: "Kolom A", val: "Tanggal & Jam" },
+                    { label: "Kolom B", val: "Latin Input" },
+                    { label: "Kolom C", val: "Arab Output" },
+                    { label: "Kolom D", val: "Arah Alih" },
+                    { label: "Kolom E", val: "Skema" },
+                    { label: "Kolom F", val: "Jumlah Huruf" },
+                    { label: "Kolom G", val: "Jumlah Kata" },
+                    { label: "Kolom H", val: "Tipe Mesin" }
+                  ].map((col, idx) => (
+                    <div key={idx} className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-center">
+                      <span className="text-[10px] font-mono font-bold text-emerald-800 block uppercase">{col.label}</span>
+                      <span className="text-[11px] text-slate-700 font-medium font-sans block mt-0.5">{col.val}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="bg-amber-50/70 text-slate-700 border border-amber-200/80 rounded-xl p-3.5 text-xs mt-4 leading-relaxed flex items-start space-x-2">
+                  <span className="text-sm shrink-0 mt-0.5">💡</span>
+                  <span>
+                    <strong>Saran Penggunaan Pertama:</strong> Pastikan Anda telah membuat spreadsheet kosong dan memasukkan judul kolom di baris pertama agar visual data statistik Anda rapi dan terorganisir.
+                  </span>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row gap-3 mt-4">
+                <button
+                  onClick={syncAllHistoryToSheet}
+                  disabled={isSyncingAll || !sheetsAccessToken || !sheetSpreadsheetId}
+                  className="flex-1 py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white disabled:bg-slate-200 disabled:text-slate-400 font-bold rounded-xl text-xs transition-colors flex items-center justify-center space-x-2"
+                >
+                  {isSyncingAll ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Sedang Menyinkronkan...</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                      </svg>
+                      <span>Unggah Semua Riwayat Lokal ke Sheets ({history.length} baris)</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  onClick={async () => {
+                    const testItem: TranslationItem = {
+                      id: "test_" + Date.now(),
+                      timestamp: new Date().toLocaleTimeString("id-ID") + " " + new Date().toLocaleDateString("id-ID"),
+                      latin: "Uji coba aragon google sheet",
+                      arabic: "اوجi چوبا اراݢون ݢوݢل شيت",
+                      preset: "pegon",
+                      notes: "Baris Uji Coba Aragon"
+                    };
+                    await appendTranslationToSheet(testItem);
+                  }}
+                  disabled={!sheetsAccessToken || !sheetSpreadsheetId}
+                  className="py-3 px-4 bg-slate-100 hover:bg-slate-200 disabled:bg-slate-50 disabled:text-slate-300 font-semibold text-slate-800 rounded-xl text-xs transition-colors border border-slate-250 flex items-center justify-center"
+                >
+                  Kirim Baris Uji Coba (Test)
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      </section>
+
       {/* FOOTER SECTION: Historical Log Panel */}
       <section className="max-w-7xl mx-auto px-4 md:px-8 mt-8 no-print">
         
@@ -1772,7 +2492,7 @@ export default function App() {
                         className="bg-slate-50 p-6 rounded-xl text-right leading-relaxed font-arabic font-bold text-indigo-950 text-3xl break-words"
                         style={{ fontFamily: `"${selectedFont}", serif`, direction: "rtl" }}
                       >
-                        {useAI ? aiResult : arabicText}
+                        {finalArabicOutput}
                       </div>
                     </div>
 
@@ -1869,7 +2589,7 @@ export default function App() {
               className="bg-slate-50 p-6 rounded-xl text-right leading-relaxed font-arabic font-bold text-indigo-950 text-3xl break-words"
               style={{ fontFamily: `"${selectedFont}", serif`, direction: "rtl" }}
             >
-              {useAI ? aiResult : arabicText}
+              {finalArabicOutput}
             </div>
           </div>
 

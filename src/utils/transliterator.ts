@@ -610,6 +610,7 @@ export function transliteratePegonToLatinWord(
     "ش": "sy",
     "ڠ": "ng",
     "ڽ": "ny",
+    "ۑ": "ny",
     "ط": "th",
     "ڊ": "dh",
     "ص": "sh",

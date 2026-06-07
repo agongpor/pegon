@@ -1,6 +1,6 @@
 {
-  "name": "Transliterasi Arab Pegon Nusantara",
-  "description": "Aplikasi web waktu-nyata untuk mengubah teks Latin menjadi tulisan Arab Pegon dengan sistem deteksi otomatis kata serapan bahasa Arab asli tanpa harakat serta penanganan pepet.",
+  "name": "Aragon",
+  "description": "Aragon (Aplikasi Arab Pegon & Jawi) - Aplikasi web waktu-nyata untuk mengubah teks Latin menjadi tulisan Arab Pegon dan Jawi dengan sistem deteksi otomatis kata serapan bahasa Arab serta penyimpanan riwayat statistik ke Google Sheets.",
   "requestFramePermissions": ["microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
