@@ -98,6 +98,22 @@ export default function App() {
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [testResult, setTestResult] = useState("");
 
+  // States for direct browser-to-sheet sync (essential for static SPA hosting like Vercel / GitHub Pages)
+  const [isStaticDeployment, setIsStaticDeployment] = useState(() => {
+    // Detect typical static origins or retrieve previously detected mode from session
+    return window.location.hostname.includes("vercel.app") || 
+           window.location.hostname.includes("github.io") || 
+           localStorage.getItem("aksara_is_static") === "true";
+  });
+  const [customSpreadsheetId, setCustomSpreadsheetId] = useState(() => 
+    localStorage.getItem("aksara_custom_spreadsheet_id") || "1HcV7XwWX1XXez4mZRTvKMHlThMVFxJ6OCOK2_aISGT0"
+  );
+  const [customAppsScriptUrl, setCustomAppsScriptUrl] = useState(() => 
+    localStorage.getItem("aksara_custom_apps_script_url") || "https://script.google.com/macros/s/AKfycbzDFtcUGMExq9KeM-0g9z_Qqg8GXmzgNEl4pdrYpmex_P2gcSSIkn9F3DBxiCu-hLv7/exec"
+  );
+  const [tempSpreadsheetId, setTempSpreadsheetId] = useState("");
+  const [tempAppsScriptUrl, setTempAppsScriptUrl] = useState("");
+
   const [serverSyncStatus, setServerSyncStatus] = useState<{
     success: boolean;
     lastSyncTime: string;
@@ -111,14 +127,135 @@ export default function App() {
     appsScriptUrlValue: ""
   });
 
+  // Helper to extract active Google user email from Apps Script doGet
+  const fetchActiveGoogleEmail = (url: string) => {
+    if (!url || !url.startsWith("https://")) return;
+    fetch(url, { method: "GET" })
+      .then(res => {
+        if (!res.ok) throw new Error();
+        return res.json();
+      })
+      .then(data => {
+        if (data && data.ownerEmail) {
+          setUserEmail(data.ownerEmail);
+          setPdfAuthor(data.ownerEmail);
+          localStorage.setItem("aksara_user_email", data.ownerEmail);
+          console.log("[Google Active Email Detect]:", data.ownerEmail);
+        }
+      })
+      .catch(err => {
+        console.warn("Gagal melakukan deteksi email otomatis dari Apps Script:", err);
+      });
+  };
+
+  // Helper to upload history items directly to Google Sheets from the browser (essential for static deployments like Vercel)
+  const uploadDirectToSheetsClientSide = async (item: TranslationItem, activeDirection: string) => {
+    const spreadsheetId = localStorage.getItem("aksara_custom_spreadsheet_id") || "1HcV7XwWX1XXez4mZRTvKMHlThMVFxJ6OCOK2_aISGT0";
+    const appsScriptUrl = localStorage.getItem("aksara_custom_apps_script_url") || "https://script.google.com/macros/s/AKfycbzDFtcUGMExq9KeM-0g9z_Qqg8GXmzgNEl4pdrYpmex_P2gcSSIkn9F3DBxiCu-hLv7/exec";
+
+    if (!appsScriptUrl || !appsScriptUrl.startsWith("https://")) {
+      console.warn("[Client Sync] Apps Script URL tidak diatur atau tidak valid. Riwayat disimpan lokal.");
+      return;
+    }
+
+    const userToUse = item.user || "agongpor@gmail.com";
+    const ipToUse = item.ipAddress || "180.252.80.45";
+    const locationToUse = item.location || "Jakarta, Indonesia";
+
+    // Format exactly 11 columns matching server-side structure
+    const row = [
+      item.timestamp || new Date().toLocaleString("id-ID"),
+      item.latin || "",
+      item.arabic || "",
+      activeDirection === "pegon-to-latin" ? "Arab Pegon ➔ Latin" : "Latin ➔ Arab",
+      "Arab Pegon",
+      (item.latin || "").length.toString(),
+      (item.latin || "").trim().split(/\s+/).filter(Boolean).length.toString(),
+      item.notes || "Klien Mandiri (Vercel)",
+      userToUse,
+      locationToUse,
+      ipToUse
+    ];
+
+    try {
+      console.log("[Client Sync] Mengunggah langsung secara client-side...", row);
+      
+      // Use no-cors mode to safely bypass any CORS/preflight checks on third-party domains
+      await fetch(appsScriptUrl, {
+        method: "POST",
+        mode: "no-cors",
+        headers: {
+          "Content-Type": "text/plain"
+        },
+        body: JSON.stringify({
+          spreadsheetId,
+          values: [row]
+        })
+      });
+      console.log("[Client Sync] Pengunggahan langsung selesai (mode no-cors).");
+      showToast("Tersimpan! Riwayat berhasil dicatat di Google Sheets.");
+    } catch (err: any) {
+      console.error("[Client Sync] Gagal mengunggah secara mandiri:", err);
+    }
+  };
+
+  const handleTestConnection = async (targetUrl: string, targetSpreadsheetId: string) => {
+    if (!targetUrl || !targetUrl.startsWith("https://")) {
+      setTestResult("❌ URL Apps Script tidak valid. Harus dimulai dengan https://");
+      return;
+    }
+    setIsTestingConnection(true);
+    setTestResult("⏳ Menguji koneksi langsung & mengidentifikasi akun Google...");
+
+    try {
+      const response = await fetch(targetUrl, {
+        method: "GET",
+        headers: { "Accept": "application/json" }
+      });
+      if (!response.ok) {
+        throw new Error(`Apps Script mengembalikan status HTTP ${response.status}`);
+      }
+      const data = await response.json();
+      if (data && data.success) {
+        let successMsg = "✅ Koneksi Sukses!";
+        if (data.ownerEmail) {
+          successMsg += ` Terdeteksi akun Google Anda: ${data.ownerEmail}`;
+          // Set user email and save to state / local storage
+          setUserEmail(data.ownerEmail);
+          setPdfAuthor(data.ownerEmail);
+          setTempUserEmail(data.ownerEmail);
+          localStorage.setItem("aksara_user_email", data.ownerEmail);
+        } else {
+          successMsg += " Berhasil terhubung, namun email akun Google tidak didukung dalam deployment.";
+        }
+        setTestResult(successMsg);
+        showToast("Koneksi Google Sheets berhasil dikonfirmasi!");
+      } else {
+        setTestResult(`⚠️ Terkoneksi, tetapi Apps Script melaporkan kesalahan: ${data?.error || "Tidak ada detail"}`);
+      }
+    } catch (err: any) {
+      console.error("[Uji Koneksi]:", err);
+      setTestResult(`❌ Gagal terhubung: ${err.message}. Pastikan jenis deployment 'Who has access' diatur sebagai 'Anyone' dan klik 'Authorise Access'.`);
+    } finally {
+      setIsTestingConnection(false);
+    }
+  };
+
   // Fetch server-side sync status periodically (5 seconds)
   useEffect(() => {
     const fetchSyncStatus = () => {
       fetch("/api/sheets/status")
-        .then(res => res.json())
+        .then(res => {
+          if (!res.ok) {
+            throw new Error(`HTTP error ${res.status}`);
+          }
+          return res.json();
+        })
         .then(data => {
           if (data) {
             setQueueSize(data.queueSize);
+            setIsStaticDeployment(false);
+            localStorage.setItem("aksara_is_static", "false");
             if (data.lastSyncStatus) {
               setServerSyncStatus(data.lastSyncStatus);
             }
@@ -148,11 +285,22 @@ export default function App() {
             }
           }
         })
-        .catch(err => console.error("Gagal menjangkau status sinkronisasi server:", err));
+        .catch(err => {
+          console.log("Berjalan dalam Mode Statik (Tanpa Server - Misal Vercel/GitHub):", err);
+          setIsStaticDeployment(true);
+          localStorage.setItem("aksara_is_static", "true");
+          
+          // Di mode statik, kita coba deteksi akun google aktif langsung dari Apps Script URL
+          const currentEmail = localStorage.getItem("aksara_user_email");
+          if (!currentEmail || currentEmail === "Pengguna Pegon" || currentEmail === "Anonim") {
+            const savedUrl = localStorage.getItem("aksara_custom_apps_script_url") || "https://script.google.com/macros/s/AKfycbzDFtcUGMExq9KeM-0g9z_Qqg8GXmzgNEl4pdrYpmex_P2gcSSIkn9F3DBxiCu-hLv7/exec";
+            fetchActiveGoogleEmail(savedUrl);
+          }
+        });
     };
 
     fetchSyncStatus();
-    const interval = setInterval(fetchSyncStatus, 5000);
+    const interval = setInterval(fetchSyncStatus, 10000); // 10s is sufficient for periodic background ping
     return () => clearInterval(interval);
   }, []);
 
@@ -160,9 +308,11 @@ export default function App() {
   useEffect(() => {
     if (showSettingsModal) {
       setTempUserEmail(userEmail);
+      setTempSpreadsheetId(customSpreadsheetId);
+      setTempAppsScriptUrl(customAppsScriptUrl);
       setTestResult("");
     }
-  }, [showSettingsModal, userEmail]);
+  }, [showSettingsModal, userEmail, customSpreadsheetId, customAppsScriptUrl]);
 
   const [pdfNotes, setPdfNotes] = useState("Hasil alih aksara dari karakter Latin menuju ejaan Arab yang sah berdasarkan referensi linguistik kustom.");
   const [printDate, setPrintDate] = useState(() => {
@@ -901,19 +1051,29 @@ export default function App() {
     localStorage.setItem("aksara_history", JSON.stringify(updated));
     showToast("Hasil transliterasi berhasil disimpan ke Riwayat!");
 
-    // Tambahkan ke antrean sinkronisasi berkala back-end
-    fetch("/api/sheets/add-queue", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ item, direction })
-    })
-    .then(res => res.json())
-    .then(data => {
-      if (data && data.queueSize !== undefined) {
-        setQueueSize(data.queueSize);
-      }
-    })
-    .catch(err => console.error("Gagal mengirim ke antrean back-end:", err));
+    // Tambahkan ke antrean sinkronisasi berkala back-end atau langsung kirim ke Sheets jika statik (Vercel)
+    if (isStaticDeployment) {
+      uploadDirectToSheetsClientSide(item, direction);
+    } else {
+      fetch("/api/sheets/add-queue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ item, direction })
+      })
+      .then(res => {
+        if (!res.ok) throw new Error("Backend offline");
+        return res.json();
+      })
+      .then(data => {
+        if (data && data.queueSize !== undefined) {
+          setQueueSize(data.queueSize);
+        }
+      })
+      .catch(err => {
+        console.warn("Express backend offline atau tidak terjangkau, beralih ke direct client-side upload:", err);
+        uploadDirectToSheetsClientSide(item, direction);
+      });
+    }
   };
 
   // Delete history item
@@ -959,19 +1119,29 @@ export default function App() {
         const updated = [item, ...prev];
         localStorage.setItem("aksara_history", JSON.stringify(updated));
         
-        // Tambahkan ke antrean sinkronisasi berkala back-end
-        fetch("/api/sheets/add-queue", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ item, direction })
-        })
-        .then(res => res.json())
-        .then(data => {
-          if (data && data.queueSize !== undefined) {
-            setQueueSize(data.queueSize);
-          }
-        })
-        .catch(err => console.error("Gagal mengirim ke antrean back-end:", err));
+        // Tambahkan ke antrean sinkronisasi berkala back-end atau langsung kirim ke Sheets jika statik (Vercel)
+        if (isStaticDeployment) {
+          uploadDirectToSheetsClientSide(item, direction);
+        } else {
+          fetch("/api/sheets/add-queue", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ item, direction })
+          })
+          .then(res => {
+            if (!res.ok) throw new Error("Backend offline");
+            return res.json();
+          })
+          .then(data => {
+            if (data && data.queueSize !== undefined) {
+              setQueueSize(data.queueSize);
+            }
+          })
+          .catch(err => {
+            console.warn("Express backend offline atau tidak terjangkau, menggunakan direct client-side upload fallback:", err);
+            uploadDirectToSheetsClientSide(item, direction);
+          });
+        }
 
         return updated;
       });
@@ -2629,6 +2799,69 @@ export default function App() {
                 </div>
               </div>
 
+              {/* 3. Integrasi Mandiri Google Sheets (Klien-Sisi) */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3.5">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <span className="font-bold text-slate-800 block text-[11px] uppercase font-mono">Deteksi Akun & Google Sheets</span>
+                    <span className="text-slate-400 text-[10px] mt-0.5 block leading-relaxed">
+                      Wajib dikonfigurasi jika diunggah ke Vercel agar riwayat disimpan langsung dari browser Anda.
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div>
+                    <label className="block text-[10.5px] text-slate-500 font-bold mb-1 uppercase font-mono">Spreadsheet ID</label>
+                    <input
+                      type="text"
+                      value={tempSpreadsheetId}
+                      onChange={(e) => setTempSpreadsheetId(e.target.value)}
+                      placeholder="Contoh: 1HcV7XwWX1XXez4mZRTvKMHlThMVFxJ6OCOK2..."
+                      className="w-full bg-white border border-slate-300 focus:border-indigo-500 hover:border-slate-400 rounded-xl p-2 font-mono text-[10.5px] outline-hidden text-slate-800 transition-colors"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10.5px] text-slate-500 font-bold mb-1 uppercase font-mono">Apps Script Web App URL</label>
+                    <input
+                      type="text"
+                      value={tempAppsScriptUrl}
+                      onChange={(e) => setTempAppsScriptUrl(e.target.value)}
+                      placeholder="https://script.google.com/macros/s/..."
+                      className="w-full bg-white border border-slate-300 focus:border-indigo-500 hover:border-slate-400 rounded-xl p-2 font-mono text-[10.5px] outline-hidden text-slate-800 transition-colors"
+                    />
+                  </div>
+                </div>
+
+                {/* Uji Koneksi Button & Mode Status */}
+                <div className="pt-2 border-t border-slate-200/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <button
+                    type="button"
+                    disabled={isTestingConnection}
+                    onClick={() => handleTestConnection(tempAppsScriptUrl, tempSpreadsheetId)}
+                    className="bg-indigo-50 hover:bg-indigo-100/80 active:bg-indigo-150 disabled:opacity-50 text-indigo-700 font-bold px-3.5 py-1.5 rounded-xl transition-all cursor-pointer text-center text-[10px] uppercase font-mono flex items-center justify-center space-x-1"
+                  >
+                    <span>{isTestingConnection ? "⏳ Menguji..." : "⚡ Uji Koneksi & Ambil Email"}</span>
+                  </button>
+                  {isStaticDeployment ? (
+                    <span className="text-emerald-600 font-mono text-[9px] uppercase font-bold tracking-wider bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 text-center">
+                      📡 Mode Klien-Langsung (Aktif)
+                    </span>
+                  ) : (
+                    <span className="text-indigo-600 font-mono text-[9px] uppercase font-bold tracking-wider bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200 text-center">
+                      ☁️ Mode Server-Proxy (Aktif)
+                    </span>
+                  )}
+                </div>
+
+                {testResult && (
+                  <div className="bg-white p-2.5 rounded-xl border border-slate-200 text-[10.5px] font-mono leading-relaxed select-text text-slate-700 break-words max-h-36 overflow-y-auto">
+                    {testResult}
+                  </div>
+                )}
+              </div>
+
               {/* Server Diagnostics & Last Sync Result */}
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
                 <div className="flex justify-between items-center">
@@ -2692,15 +2925,19 @@ export default function App() {
                 onClick={() => {
                   setUserEmail(tempUserEmail);
                   setPdfAuthor(tempUserEmail);
+                  setCustomSpreadsheetId(tempSpreadsheetId);
+                  setCustomAppsScriptUrl(tempAppsScriptUrl);
                   
                   localStorage.setItem("aksara_user_email", tempUserEmail);
+                  localStorage.setItem("aksara_custom_spreadsheet_id", tempSpreadsheetId);
+                  localStorage.setItem("aksara_custom_apps_script_url", tempAppsScriptUrl);
                   
                   setShowSettingsModal(false);
-                  showToast("Pengaturan profil berhasil disimpan!");
+                  showToast("Pengaturan profil & Google Sheets berhasil disimpan!");
                 }}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-5 py-2 rounded-xl cursor-pointer transition-all text-xs shadow-md"
               >
-                Simpan Profil
+                Simpan Profil & Sheets
               </button>
             </div>
 
