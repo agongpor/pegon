@@ -92,11 +92,7 @@ export default function App() {
   const [pdfTitle, setPdfTitle] = useState("DOKUMEN TRANSLITERASI RESMI");
   const [userEmail, setUserEmail] = useState(() => localStorage.getItem("aksara_user_email") || "Pengguna Pegon");
   const [pdfAuthor, setPdfAuthor] = useState(() => localStorage.getItem("aksara_user_email") || "Pengguna Pegon");
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [queueSize, setQueueSize] = useState(0);
-  const [tempUserEmail, setTempUserEmail] = useState("");
-  const [isTestingConnection, setIsTestingConnection] = useState(false);
-  const [testResult, setTestResult] = useState("");
 
   // States for direct browser-to-sheet sync (essential for static SPA hosting like Vercel / GitHub Pages)
   const [isStaticDeployment, setIsStaticDeployment] = useState(() => {
@@ -105,14 +101,6 @@ export default function App() {
            window.location.hostname.includes("github.io") || 
            localStorage.getItem("aksara_is_static") === "true";
   });
-  const [customSpreadsheetId, setCustomSpreadsheetId] = useState(() => 
-    localStorage.getItem("aksara_custom_spreadsheet_id") || "1HcV7XwWX1XXez4mZRTvKMHlThMVFxJ6OCOK2_aISGT0"
-  );
-  const [customAppsScriptUrl, setCustomAppsScriptUrl] = useState(() => 
-    localStorage.getItem("aksara_custom_apps_script_url") || "https://script.google.com/macros/s/AKfycbzDFtcUGMExq9KeM-0g9z_Qqg8GXmzgNEl4pdrYpmex_P2gcSSIkn9F3DBxiCu-hLv7/exec"
-  );
-  const [tempSpreadsheetId, setTempSpreadsheetId] = useState("");
-  const [tempAppsScriptUrl, setTempAppsScriptUrl] = useState("");
 
   const [serverSyncStatus, setServerSyncStatus] = useState<{
     success: boolean;
@@ -150,17 +138,12 @@ export default function App() {
 
   // Helper to upload history items directly to Google Sheets from the browser (essential for static deployments like Vercel)
   const uploadDirectToSheetsClientSide = async (item: TranslationItem, activeDirection: string) => {
-    const spreadsheetId = localStorage.getItem("aksara_custom_spreadsheet_id") || "1HcV7XwWX1XXez4mZRTvKMHlThMVFxJ6OCOK2_aISGT0";
-    const appsScriptUrl = localStorage.getItem("aksara_custom_apps_script_url") || "https://script.google.com/macros/s/AKfycbzDFtcUGMExq9KeM-0g9z_Qqg8GXmzgNEl4pdrYpmex_P2gcSSIkn9F3DBxiCu-hLv7/exec";
+    const spreadsheetId = "1HcV7XwWX1XXez4mZRTvKMHlThMVFxJ6OCOK2_aISGT0";
+    const appsScriptUrl = "https://script.google.com/macros/s/AKfycbzDFtcUGMExq9KeM-0g9z_Qqg8GXmzgNEl4pdrYpmex_P2gcSSIkn9F3DBxiCu-hLv7/exec";
 
-    if (!appsScriptUrl || !appsScriptUrl.startsWith("https://")) {
-      console.warn("[Client Sync] Apps Script URL tidak diatur atau tidak valid. Riwayat disimpan lokal.");
-      return;
-    }
-
-    const userToUse = item.user || "agongpor@gmail.com";
-    const ipToUse = item.ipAddress || "180.252.80.45";
-    const locationToUse = item.location || "Jakarta, Indonesia";
+    const userToUse = userEmail || "agongpor@gmail.com";
+    const ipToUse = item.ipAddress || userIp || "180.252.80.45";
+    const locationToUse = item.location || userLocation || "Jakarta, Indonesia";
 
     // Format exactly 11 columns matching server-side structure
     const row = [
@@ -196,48 +179,6 @@ export default function App() {
       showToast("Tersimpan! Riwayat berhasil dicatat di Google Sheets.");
     } catch (err: any) {
       console.error("[Client Sync] Gagal mengunggah secara mandiri:", err);
-    }
-  };
-
-  const handleTestConnection = async (targetUrl: string, targetSpreadsheetId: string) => {
-    if (!targetUrl || !targetUrl.startsWith("https://")) {
-      setTestResult("❌ URL Apps Script tidak valid. Harus dimulai dengan https://");
-      return;
-    }
-    setIsTestingConnection(true);
-    setTestResult("⏳ Menguji koneksi langsung & mengidentifikasi akun Google...");
-
-    try {
-      const response = await fetch(targetUrl, {
-        method: "GET",
-        headers: { "Accept": "application/json" }
-      });
-      if (!response.ok) {
-        throw new Error(`Apps Script mengembalikan status HTTP ${response.status}`);
-      }
-      const data = await response.json();
-      if (data && data.success) {
-        let successMsg = "✅ Koneksi Sukses!";
-        if (data.ownerEmail) {
-          successMsg += ` Terdeteksi akun Google Anda: ${data.ownerEmail}`;
-          // Set user email and save to state / local storage
-          setUserEmail(data.ownerEmail);
-          setPdfAuthor(data.ownerEmail);
-          setTempUserEmail(data.ownerEmail);
-          localStorage.setItem("aksara_user_email", data.ownerEmail);
-        } else {
-          successMsg += " Berhasil terhubung, namun email akun Google tidak didukung dalam deployment.";
-        }
-        setTestResult(successMsg);
-        showToast("Koneksi Google Sheets berhasil dikonfirmasi!");
-      } else {
-        setTestResult(`⚠️ Terkoneksi, tetapi Apps Script melaporkan kesalahan: ${data?.error || "Tidak ada detail"}`);
-      }
-    } catch (err: any) {
-      console.error("[Uji Koneksi]:", err);
-      setTestResult(`❌ Gagal terhubung: ${err.message}. Pastikan jenis deployment 'Who has access' diatur sebagai 'Anyone' dan klik 'Authorise Access'.`);
-    } finally {
-      setIsTestingConnection(false);
     }
   };
 
@@ -293,7 +234,7 @@ export default function App() {
           // Di mode statik, kita coba deteksi akun google aktif langsung dari Apps Script URL
           const currentEmail = localStorage.getItem("aksara_user_email");
           if (!currentEmail || currentEmail === "Pengguna Pegon" || currentEmail === "Anonim") {
-            const savedUrl = localStorage.getItem("aksara_custom_apps_script_url") || "https://script.google.com/macros/s/AKfycbzDFtcUGMExq9KeM-0g9z_Qqg8GXmzgNEl4pdrYpmex_P2gcSSIkn9F3DBxiCu-hLv7/exec";
+            const savedUrl = "https://script.google.com/macros/s/AKfycbzDFtcUGMExq9KeM-0g9z_Qqg8GXmzgNEl4pdrYpmex_P2gcSSIkn9F3DBxiCu-hLv7/exec";
             fetchActiveGoogleEmail(savedUrl);
           }
         });
@@ -303,16 +244,6 @@ export default function App() {
     const interval = setInterval(fetchSyncStatus, 10000); // 10s is sufficient for periodic background ping
     return () => clearInterval(interval);
   }, []);
-
-  // Sync temp variables when modal opens
-  useEffect(() => {
-    if (showSettingsModal) {
-      setTempUserEmail(userEmail);
-      setTempSpreadsheetId(customSpreadsheetId);
-      setTempAppsScriptUrl(customAppsScriptUrl);
-      setTestResult("");
-    }
-  }, [showSettingsModal, userEmail, customSpreadsheetId, customAppsScriptUrl]);
 
   const [pdfNotes, setPdfNotes] = useState("Hasil alih aksara dari karakter Latin menuju ejaan Arab yang sah berdasarkan referensi linguistik kustom.");
   const [printDate, setPrintDate] = useState(() => {
@@ -1283,18 +1214,16 @@ export default function App() {
             <div className="flex flex-wrap items-center gap-2 text-xs">
               
               <div 
-                onClick={() => setShowSettingsModal(true)}
-                className="bg-slate-100 border border-slate-200 hover:bg-slate-200 px-3 py-1.5 rounded-lg flex items-center space-x-2 text-slate-600 cursor-pointer transition-colors"
-                title="Klik untuk mengubah Akun Pengguna"
+                className="bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-lg flex items-center space-x-2 text-slate-600"
+                title="Sistem mendeteksi Google Account di browser secara otomatis untuk merekam riwayat."
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-pulse"></span>
                 <span className="font-mono">User: {userEmail}</span>
               </div>
 
               <div 
-                onClick={() => setShowSettingsModal(true)}
-                className="bg-slate-100 border border-slate-200 hover:bg-slate-200 px-3 py-1.5 rounded-lg flex items-center space-x-2 text-slate-600 cursor-pointer transition-colors"
-                title={`Lokasi: ${userLocation}. Klik untuk mengubah.`}
+                className="bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-lg flex items-center space-x-2 text-slate-600"
+                title={`Lokasi Terdeteksi: ${userLocation || 'Indonesia'}`}
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                 <span className="font-mono">IP: {userIp}</span>
@@ -2739,211 +2668,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Google Sheets and Device Connection settings Modal */}
-      {showSettingsModal && (
-        <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto no-print animate-fade-in">
-          <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden flex flex-col shadow-2xl border border-slate-300 animate-scale-in">
-            
-            {/* Modal Header */}
-            <div className="bg-slate-900 text-slate-100 p-5 px-6 flex justify-between items-center border-b border-slate-800">
-              <div className="flex items-center space-x-2.5">
-                <User className="w-5 h-5 text-indigo-400" />
-                <h3 className="font-display font-semibold text-sm md:text-base text-slate-200">
-                  Profil Pengguna & Identitas Perangkat
-                </h3>
-              </div>
-              <button
-                onClick={() => setShowSettingsModal(false)}
-                className="text-slate-400 hover:text-white font-bold text-xs bg-slate-800 hover:bg-slate-750 px-3 py-1.5 rounded-xl cursor-pointer transition-colors"
-              >
-                Batal
-              </button>
-            </div>
 
-            {/* Modal Body */}
-            <div className="p-6 overflow-y-auto space-y-5 text-xs text-slate-705">
-              <p className="text-slate-500 leading-relaxed text-[11px]">
-                Sesuaikan nama identitas untuk pencatatan riwayat alih aksara dan penandatanganan dokumen PDF resmi. Alamat IP serta lokasi dideteksi secara dinamis sesuai koneksi aktif perangkat masing-masing pengguna.
-              </p>
-
-              {/* 1. Akun Pengguna / User Email */}
-              <div className="space-y-1.5">
-                <label className="block text-slate-600 uppercase font-mono font-semibold tracking-wide">
-                  Nama / Email Pengguna Anda
-                </label>
-                <input
-                  type="text"
-                  value={tempUserEmail}
-                  onChange={(e) => setTempUserEmail(e.target.value)}
-                  placeholder="Masukkan nama atau email Anda"
-                  className="w-full bg-slate-50 hover:bg-slate-100/50 focus:bg-white border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-xl p-3 font-medium transition-all text-slate-800"
-                />
-                <p className="text-slate-400 text-[10px]">
-                  Tag penulis Anda yang saat ini aktif: <span className="font-mono bg-slate-100 px-1 rounded font-bold text-indigo-600">{tempUserEmail || "Anonim"}</span>
-                </p>
-              </div>
-
-              {/* 2. Informasi Koneksi & IP Masing-Masing */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <span className="block text-[10px] text-slate-400 uppercase font-mono tracking-wider font-semibold">Alamat IP Anda</span>
-                  <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-[11px] text-slate-700">
-                    {userIp || "Mendeteksi..."}
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <span className="block text-[10px] text-slate-400 uppercase font-mono tracking-wider font-semibold">Lokasi Terdeteksi</span>
-                  <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-[11px] text-slate-700 truncate" title={userLocation}>
-                    {userLocation || "Mendeteksi..."}
-                  </div>
-                </div>
-              </div>
-
-              {/* 3. Integrasi Mandiri Google Sheets (Klien-Sisi) */}
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3.5">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <span className="font-bold text-slate-800 block text-[11px] uppercase font-mono">Deteksi Akun & Google Sheets</span>
-                    <span className="text-slate-400 text-[10px] mt-0.5 block leading-relaxed">
-                      Wajib dikonfigurasi jika diunggah ke Vercel agar riwayat disimpan langsung dari browser Anda.
-                    </span>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <div>
-                    <label className="block text-[10.5px] text-slate-500 font-bold mb-1 uppercase font-mono">Spreadsheet ID</label>
-                    <input
-                      type="text"
-                      value={tempSpreadsheetId}
-                      onChange={(e) => setTempSpreadsheetId(e.target.value)}
-                      placeholder="Contoh: 1HcV7XwWX1XXez4mZRTvKMHlThMVFxJ6OCOK2..."
-                      className="w-full bg-white border border-slate-300 focus:border-indigo-500 hover:border-slate-400 rounded-xl p-2 font-mono text-[10.5px] outline-hidden text-slate-800 transition-colors"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10.5px] text-slate-500 font-bold mb-1 uppercase font-mono">Apps Script Web App URL</label>
-                    <input
-                      type="text"
-                      value={tempAppsScriptUrl}
-                      onChange={(e) => setTempAppsScriptUrl(e.target.value)}
-                      placeholder="https://script.google.com/macros/s/..."
-                      className="w-full bg-white border border-slate-300 focus:border-indigo-500 hover:border-slate-400 rounded-xl p-2 font-mono text-[10.5px] outline-hidden text-slate-800 transition-colors"
-                    />
-                  </div>
-                </div>
-
-                {/* Uji Koneksi Button & Mode Status */}
-                <div className="pt-2 border-t border-slate-200/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                  <button
-                    type="button"
-                    disabled={isTestingConnection}
-                    onClick={() => handleTestConnection(tempAppsScriptUrl, tempSpreadsheetId)}
-                    className="bg-indigo-50 hover:bg-indigo-100/80 active:bg-indigo-150 disabled:opacity-50 text-indigo-700 font-bold px-3.5 py-1.5 rounded-xl transition-all cursor-pointer text-center text-[10px] uppercase font-mono flex items-center justify-center space-x-1"
-                  >
-                    <span>{isTestingConnection ? "⏳ Menguji..." : "⚡ Uji Koneksi & Ambil Email"}</span>
-                  </button>
-                  {isStaticDeployment ? (
-                    <span className="text-emerald-600 font-mono text-[9px] uppercase font-bold tracking-wider bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 text-center">
-                      📡 Mode Klien-Langsung (Aktif)
-                    </span>
-                  ) : (
-                    <span className="text-indigo-600 font-mono text-[9px] uppercase font-bold tracking-wider bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200 text-center">
-                      ☁️ Mode Server-Proxy (Aktif)
-                    </span>
-                  )}
-                </div>
-
-                {testResult && (
-                  <div className="bg-white p-2.5 rounded-xl border border-slate-200 text-[10.5px] font-mono leading-relaxed select-text text-slate-700 break-words max-h-36 overflow-y-auto">
-                    {testResult}
-                  </div>
-                )}
-              </div>
-
-              {/* Server Diagnostics & Last Sync Result */}
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <span className="font-bold text-slate-700 block text-[11px]">Status Sinkronisasi Google Sheets</span>
-                    <span className="text-slate-400 text-[10px]">Data diunggah terpusat secara otomatis setiap 15 detik.</span>
-                  </div>
-                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
-                    serverConfigured.appsScriptUrl 
-                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200" 
-                      : "bg-amber-50 text-amber-700 border border-amber-200"
-                  }`}>
-                    {serverConfigured.appsScriptUrl ? "Aktif" : "Menunggu Admin"}
-                  </span>
-                </div>
-                {serverSyncStatus && serverSyncStatus.lastSyncTime ? (
-                  <div className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1.5 text-[10px] font-mono">
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-500">Status Sync Terakhir:</span>
-                      <span className={`font-semibold ${serverSyncStatus.success ? "text-emerald-600" : "text-red-500 animate-pulse"}`}>
-                        {serverSyncStatus.success ? "✅ Selesai (Sukses)" : "❌ Gagal"}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Waktu Kirim:</span>
-                      <span className="text-slate-700 font-bold">{serverSyncStatus.lastSyncTime}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Baris Terunggah:</span>
-                      <span className="text-slate-700 font-bold">{serverSyncStatus.rowsUploaded} baris</span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="bg-slate-100/50 p-2.5 rounded-xl border border-dashed border-slate-300 text-center text-slate-400 text-[10px]">
-                    Belum ada riwayat baru yang diunggah sejak sesi dimulai.
-                  </div>
-                )}
-              </div>
-
-              {/* Queue status information */}
-              <div className="flex items-center justify-between bg-indigo-50/55 p-3 rounded-xl border border-indigo-100 text-indigo-950 tracking-wide text-[11px]">
-                <div className="flex items-center space-x-2">
-                  <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
-                  <span>Antrean Menunggu Sinkronisasi:</span>
-                </div>
-                <strong className={queueSize > 0 ? "text-red-500 font-mono animate-bounce text-[12px]" : "text-emerald-600 font-mono"}>
-                  {queueSize} Baris Riwayat
-                </strong>
-              </div>
-            </div>
-
-            {/* Modal Actions Footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex space-x-3 justify-end">
-              <button
-                onClick={() => setShowSettingsModal(false)}
-                className="bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold px-4 py-2 rounded-xl cursor-pointer transition-all text-xs"
-              >
-                Tutup
-              </button>
-              <button
-                onClick={() => {
-                  setUserEmail(tempUserEmail);
-                  setPdfAuthor(tempUserEmail);
-                  setCustomSpreadsheetId(tempSpreadsheetId);
-                  setCustomAppsScriptUrl(tempAppsScriptUrl);
-                  
-                  localStorage.setItem("aksara_user_email", tempUserEmail);
-                  localStorage.setItem("aksara_custom_spreadsheet_id", tempSpreadsheetId);
-                  localStorage.setItem("aksara_custom_apps_script_url", tempAppsScriptUrl);
-                  
-                  setShowSettingsModal(false);
-                  showToast("Pengaturan profil & Google Sheets berhasil disimpan!");
-                }}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-5 py-2 rounded-xl cursor-pointer transition-all text-xs shadow-md"
-              >
-                Simpan Profil & Sheets
-              </button>
-            </div>
-
-          </div>
-        </div>
-      )}
 
       {/* MODAL PILIHAN FORMAT EKSPOR EKSPOR */}
       {showFormatSelector && (

@@ -110,10 +110,20 @@ function createJsonResponse(obj) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-// Fungsi doGet sebagai endpoint ping uji coba
+// Fungsi doGet sebagai endpoint ping uji coba dan deteksi email otomatis
 function doGet(e) {
+  var activeEmail = "";
+  try {
+    activeEmail = Session.getActiveUser().getEmail();
+  } catch (err) {}
+  if (!activeEmail) {
+    try {
+      activeEmail = Session.getEffectiveUser().getEmail();
+    } catch (err) {}
+  }
   return createJsonResponse({
     success: true,
-    message: "Koneksi Google Apps Script Web App berhasil aktif!"
+    message: "Koneksi Google Apps Script Web App berhasil aktif!",
+    ownerEmail: activeEmail
   });
 }
