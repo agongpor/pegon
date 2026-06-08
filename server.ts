@@ -15,35 +15,7 @@ const DEFAULT_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDFtcU
 
 // Helper to detect Google authenticated user email or any active session email from request headers
 function detectUserEmail(req: Request): string {
-  const headersToCheck = [
-    "x-goog-authenticated-user-email",
-    "x-user-email",
-    "x-forwarded-email",
-    "x-replit-user-email-address",
-    "x-replit-user-email"
-  ];
-
-  for (const headerName of headersToCheck) {
-    const value = req.headers[headerName];
-    if (typeof value === "string" && value.trim()) {
-      const emailMatch = value.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-      if (emailMatch) {
-         return emailMatch[0];
-      }
-    }
-  }
-
-  // Fallback scan all other headers for any valid email
-  for (const [key, value] of Object.entries(req.headers)) {
-    if (typeof value === "string") {
-      const emailMatch = value.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-      if (emailMatch) {
-        return emailMatch[0];
-      }
-    }
-  }
-
-  return "";
+  return "Anonim";
 }
 
 // Helper to get client IP on the server
@@ -363,8 +335,7 @@ app.post("/api/sheets/add-queue", (req: Request, res: Response) => {
     }
 
     // Dapatkan email pengguna yang berinteraksi
-    const detectedEmail = detectUserEmail(req);
-    const userToUse = detectedEmail || item.user || "agongpor@gmail.com";
+    const userToUse = "Anonim";
 
     // Susun format baris baru sesuai dengan pemetaan kolom yang rapi
     const row = [
@@ -403,16 +374,14 @@ app.post("/api/sheets/add-queue", (req: Request, res: Response) => {
 
 // Endpoint untuk mengecek status sync terpusat
 app.get("/api/sheets/status", (req: Request, res: Response) => {
-  const activeEmail = detectUserEmail(req);
   const detectedIp = getClientIp(req);
 
   return res.json({
     queueSize: sheetQueue.length,
     intervalMs: SYNC_INTERVAL_MS,
     lastSyncStatus,
-    activeUserEmail: activeEmail || "agongpor@gmail.com",
+    activeUserEmail: "Anonim",
     detectedIp: detectedIp || "180.252.80.45",
-    debugHeaders: req.headers, // Return headers for real-time debugging in UI
     configured: {
       spreadsheetId: !!(process.env.GOOGLE_SPREADSHEET_ID || DEFAULT_SPREADSHEET_ID),
       appsScriptUrl: !!(process.env.GOOGLE_APPS_SCRIPT_URL || DEFAULT_APPS_SCRIPT_URL),

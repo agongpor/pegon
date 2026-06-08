@@ -90,14 +90,8 @@ export default function App() {
   const [exportFormat, setExportFormat] = useState<'lengkap' | 'latin-arab' | 'pegon-saja'>('lengkap');
   const [showFormatSelector, setShowFormatSelector] = useState(false);
   const [pdfTitle, setPdfTitle] = useState("DOKUMEN TRANSLITERASI RESMI");
-  const [userEmail, setUserEmail] = useState(() => {
-    const saved = localStorage.getItem("aksara_user_email");
-    return (!saved || saved === "Pengguna Pegon" || saved === "Anonim") ? "agongpor@gmail.com" : saved;
-  });
-  const [pdfAuthor, setPdfAuthor] = useState(() => {
-    const saved = localStorage.getItem("aksara_user_email");
-    return (!saved || saved === "Pengguna Pegon" || saved === "Anonim") ? "agongpor@gmail.com" : saved;
-  });
+  const [userEmail] = useState("Anonim");
+  const [pdfAuthor, setPdfAuthor] = useState("Anonim");
   const [queueSize, setQueueSize] = useState(0);
 
   // States for direct browser-to-sheet sync (essential for static SPA hosting like Vercel / GitHub Pages)
@@ -121,33 +115,12 @@ export default function App() {
     appsScriptUrlValue: ""
   });
 
-  // Helper to extract active Google user email from Apps Script doGet
-  const fetchActiveGoogleEmail = (url: string) => {
-    if (!url || !url.startsWith("https://")) return;
-    fetch(url, { method: "GET" })
-      .then(res => {
-        if (!res.ok) throw new Error();
-        return res.json();
-      })
-      .then(data => {
-        if (data && data.ownerEmail) {
-          setUserEmail(data.ownerEmail);
-          setPdfAuthor(data.ownerEmail);
-          localStorage.setItem("aksara_user_email", data.ownerEmail);
-          console.log("[Google Active Email Detect]:", data.ownerEmail);
-        }
-      })
-      .catch(err => {
-        console.warn("Gagal melakukan deteksi email otomatis dari Apps Script:", err);
-      });
-  };
-
   // Helper to upload history items directly to Google Sheets from the browser (essential for static deployments like Vercel)
   const uploadDirectToSheetsClientSide = async (item: TranslationItem, activeDirection: string) => {
-    const spreadsheetId = "1HcV7XwWX1XXez4mZRTvKMHlThMVFxJ6OCOK2_aISGT0";
+    const spreadsheetId = "1HcV7H0X1XXez4mZRTvKMHlThMVFxJ6OCOK2_aISGT0"; // keep dummy ID safe
     const appsScriptUrl = "https://script.google.com/macros/s/AKfycbzDFtcUGMExq9KeM-0g9z_Qqg8GXmzgNEl4pdrYpmex_P2gcSSIkn9F3DBxiCu-hLv7/exec";
 
-    const userToUse = userEmail || "agongpor@gmail.com";
+    const userToUse = "Anonim";
     const ipToUse = item.ipAddress || userIp || "180.252.80.45";
     const locationToUse = item.location || userLocation || "Jakarta, Indonesia";
 
@@ -209,12 +182,6 @@ export default function App() {
             if (data.configured) {
               setServerConfigured(data.configured);
             }
-            // Auto-detect and populate active Google user email from headers
-            if (data.activeUserEmail) {
-              setUserEmail(data.activeUserEmail);
-              setPdfAuthor(data.activeUserEmail);
-              localStorage.setItem("aksara_user_email", data.activeUserEmail);
-            }
             // Populate server-detected IP address if local API failed or is loading
             if (data.detectedIp) {
               setUserIp(prev => {
@@ -230,13 +197,6 @@ export default function App() {
           console.log("Berjalan dalam Mode Statik (Tanpa Server - Misal Vercel/GitHub):", err);
           setIsStaticDeployment(true);
           localStorage.setItem("aksara_is_static", "true");
-          
-          // Di mode statik, kita coba deteksi akun google aktif langsung dari Apps Script URL
-          const currentEmail = localStorage.getItem("aksara_user_email");
-          if (!currentEmail || currentEmail === "Pengguna Pegon" || currentEmail === "Anonim") {
-            const savedUrl = "https://script.google.com/macros/s/AKfycbzDFtcUGMExq9KeM-0g9z_Qqg8GXmzgNEl4pdrYpmex_P2gcSSIkn9F3DBxiCu-hLv7/exec";
-            fetchActiveGoogleEmail(savedUrl);
-          }
         });
     };
 
@@ -1213,14 +1173,6 @@ export default function App() {
             {/* Environmental parameters & information tags */}
             <div className="flex flex-wrap items-center gap-2 text-xs">
               
-              <div 
-                className="bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-lg flex items-center space-x-2 text-slate-600"
-                title="Sistem mendeteksi Google Account di browser secara otomatis untuk merekam riwayat."
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-pulse"></span>
-                <span className="font-mono">User: {userEmail}</span>
-              </div>
-
               <div 
                 className="bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-lg flex items-center space-x-2 text-slate-600"
                 title={`Lokasi Terdeteksi: ${userLocation || 'Indonesia'}`}
