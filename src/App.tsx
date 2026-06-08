@@ -22,7 +22,9 @@ import {
   Search,
   ExternalLink,
   Mic,
-  MicOff
+  MicOff,
+  User,
+  X
 } from "lucide-react";
 import { CustomMapping, PresetType, TranslationItem, WordConversionResult } from "./types";
 import { DEFAULT_PEGON_MAPPINGS } from "./utils/presets";
@@ -85,9 +87,11 @@ export default function App() {
 
   // Print-ready preview modal state
   const [showPrintPreview, setShowPrintPreview] = useState(false);
+  const [exportFormat, setExportFormat] = useState<'lengkap' | 'latin-arab' | 'pegon-saja'>('lengkap');
+  const [showFormatSelector, setShowFormatSelector] = useState(false);
   const [pdfTitle, setPdfTitle] = useState("DOKUMEN TRANSLITERASI RESMI");
-  const [userEmail, setUserEmail] = useState(() => localStorage.getItem("aksara_user_email") || "agongpor@gmail.com");
-  const [pdfAuthor, setPdfAuthor] = useState(() => localStorage.getItem("aksara_user_email") || "agongpor@gmail.com");
+  const [userEmail, setUserEmail] = useState(() => localStorage.getItem("aksara_user_email") || "Pengguna Pegon");
+  const [pdfAuthor, setPdfAuthor] = useState(() => localStorage.getItem("aksara_user_email") || "Pengguna Pegon");
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [queueSize, setQueueSize] = useState(0);
   const [tempUserEmail, setTempUserEmail] = useState("");
@@ -1086,19 +1090,6 @@ export default function App() {
           <div className="flex items-center gap-4 w-full lg:w-auto justify-center lg:justify-end">
             {/* Environmental parameters & information tags */}
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              <button 
-                onClick={() => setShowSettingsModal(true)}
-                className="bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 font-semibold px-3 py-1.5 rounded-lg flex items-center space-x-1.5 transition-all cursor-pointer shadow-3xs"
-                title="Buka Pengaturan Sinkronisasi & Akun Perangkat"
-              >
-                <Settings className={`w-3.5 h-3.5 ${queueSize > 0 ? "animate-spin text-red-500" : ""}`} />
-                <span>Pengaturan Sync</span>
-                {queueSize > 0 && (
-                  <span className="bg-red-500 text-white rounded-full text-[9px] px-1.5 py-0.5 font-bold animate-pulse">
-                    {queueSize} pending
-                  </span>
-                )}
-              </button>
               
               <div 
                 onClick={() => setShowSettingsModal(true)}
@@ -1825,7 +1816,7 @@ export default function App() {
                       alert("Masukkan kalimat terlebih dahulu sebelum mencetak.");
                       return;
                     }
-                    setShowPrintPreview(true);
+                    setShowFormatSelector(true);
                   }}
                   className="flex items-center space-x-1.5 py-2 px-4 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl font-bold transition-all shadow-sm shadow-amber-500/10 cursor-pointer"
                 >
@@ -2228,36 +2219,66 @@ export default function App() {
               </button>
             </div>
 
-            {/* Layout Customizer panel (interactive form before PDF build) */}
-            <div className="p-5 bg-slate-50 border-b border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-              <div>
-                <label className="block text-slate-500 uppercase font-mono font-semibold mb-1">Judul Dokumen</label>
-                <input
-                  type="text"
-                  className="w-full bg-white border border-slate-300 rounded-xl p-2 font-medium"
-                  value={pdfTitle}
-                  onChange={(e) => setPdfTitle(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="block text-slate-500 uppercase font-mono font-semibold mb-1">Penyusun / Penerjemah</label>
-                <input
-                  type="text"
-                  className="w-full bg-white border border-slate-300 rounded-xl p-2 font-medium"
-                  value={pdfAuthor}
-                  onChange={(e) => setPdfAuthor(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="block text-slate-500 uppercase font-mono font-semibold mb-1">Catatan Dokumen</label>
-                <input
-                  type="text"
-                  className="w-full bg-white border border-slate-300 rounded-xl p-2 font-medium"
-                  value={pdfNotes}
-                  onChange={(e) => setPdfNotes(e.target.value)}
-                />
+            {/* Format Selection Tab Toggle */}
+            <div className="px-6 py-3 bg-indigo-50/50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
+              <span className="font-mono uppercase font-bold text-indigo-950">Pilih Layout Dokumen:</span>
+              <div className="flex bg-white p-1 border border-slate-200 rounded-2xl shadow-3xs">
+                <button
+                  type="button"
+                  onClick={() => setExportFormat("lengkap")}
+                  className={`px-3 py-1.5 rounded-xl font-semibold transition-all cursor-pointer ${exportFormat === "lengkap" ? "bg-indigo-650 text-white shadow-3xs" : "text-slate-600 hover:text-slate-950"}`}
+                >
+                  Lengkap (Resmi)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExportFormat("latin-arab")}
+                  className={`px-3 py-1.5 rounded-xl font-semibold transition-all cursor-pointer ${exportFormat === "latin-arab" ? "bg-indigo-650 text-white shadow-3xs" : "text-slate-600 hover:text-slate-950"}`}
+                >
+                  Latin & Pegon
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExportFormat("pegon-saja")}
+                  className={`px-3 py-1.5 rounded-xl font-semibold transition-all cursor-pointer ${exportFormat === "pegon-saja" ? "bg-indigo-650 text-white shadow-3xs" : "text-slate-600 hover:text-slate-950"}`}
+                >
+                  Pegon Saja
+                </button>
               </div>
             </div>
+
+            {/* Layout Customizer panel (interactive form before PDF build) */}
+            {exportFormat === "lengkap" && (
+              <div className="p-5 bg-slate-50 border-b border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                <div>
+                  <label className="block text-slate-500 uppercase font-mono font-semibold mb-1">Judul Dokumen</label>
+                  <input
+                    type="text"
+                    className="w-full bg-white border border-slate-300 rounded-xl p-2 font-medium"
+                    value={pdfTitle}
+                    onChange={(e) => setPdfTitle(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-500 uppercase font-mono font-semibold mb-1">Penyusun / Penerjemah</label>
+                  <input
+                    type="text"
+                    className="w-full bg-white border border-slate-300 rounded-xl p-2 font-medium"
+                    value={pdfAuthor}
+                    onChange={(e) => setPdfAuthor(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-555 uppercase font-mono font-semibold mb-1">Catatan Dokumen</label>
+                  <input
+                    type="text"
+                    className="w-full bg-white border border-slate-300 rounded-xl p-2 font-medium"
+                    value={pdfNotes}
+                    onChange={(e) => setPdfNotes(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
 
             {/* A4 Sheet Preview Mockup */}
             <div className="p-8 bg-slate-100 overflow-x-auto flex justify-center">
@@ -2265,62 +2286,74 @@ export default function App() {
               {/* This mimics the layout of the print page closely */}
               <div 
                 id="printable-area"
-                className="w-[210mm] min-h-[297mm] bg-white text-slate-900 border-2 border-slate-300 p-16 shadow-lg relative flex flex-col justify-between"
+                className={`w-[210mm] min-h-[297mm] bg-white text-slate-900 border-2 border-slate-300 p-16 shadow-lg relative flex flex-col ${exportFormat === "lengkap" ? "justify-between" : "justify-start space-y-8"}`}
                 style={{ boxSizing: "border-box" }}
               >
                 
                 {/* Vintage Frame borders */}
-                <div className="absolute inset-4 border border-indigo-950 pointer-events-none opacity-5 pr-2"></div>
-                <div className="absolute inset-6 border-2 border-double border-indigo-950 pointer-events-none opacity-20"></div>
+                {exportFormat === "lengkap" && (
+                  <>
+                    <div className="absolute inset-4 border border-indigo-950 pointer-events-none opacity-5 pr-2"></div>
+                    <div className="absolute inset-6 border-2 border-double border-indigo-950 pointer-events-none opacity-20"></div>
+                  </>
+                )}
 
                 <div className="space-y-8 z-10">
                   
                   {/* Letterhead Header banner */}
-                  <div className="text-center border-b-2 border-slate-800 pb-4 relative">
-                    <div className="text-xs uppercase tracking-widest font-mono font-bold text-amber-700">DOKUMEN RESMI</div>
-                    <h2 className="font-display font-bold text-2xl text-indigo-950 mt-1 uppercase tracking-tight">{pdfTitle}</h2>
-                    <p className="text-xs text-slate-400 font-mono mt-0.5">Alih Aksara Tulisan Arab Melayu & Pegon Nusantara</p>
-                    
-                    {/* Floating watermarked corner symbol */}
-                    <div className="absolute top-0 right-0 font-arabic text-indigo-950 opacity-10 text-4xl">ج</div>
-                  </div>
+                  {exportFormat === "lengkap" && (
+                    <div className="text-center border-b-2 border-slate-800 pb-4 relative">
+                      <div className="text-xs uppercase tracking-widest font-mono font-bold text-amber-700">DOKUMEN RESMI</div>
+                      <h2 className="font-display font-bold text-2xl text-indigo-950 mt-1 uppercase tracking-tight">{pdfTitle}</h2>
+                      <p className="text-xs text-slate-400 font-mono mt-0.5">Alih Aksara Tulisan Arab Melayu & Pegon Nusantara</p>
+                      
+                      {/* Floating watermarked corner symbol */}
+                      <div className="absolute top-0 right-0 font-arabic text-indigo-950 opacity-10 text-4xl">ج</div>
+                    </div>
+                  )}
 
                   {/* Metadata Panel Grid */}
-                  <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50 p-4 rounded-xl border border-slate-200">
-                    <div>
-                      <span className="text-slate-400 block font-mono">PENYUSUN/AUTORITAS:</span>
-                      <strong className="text-slate-850 block">{pdfAuthor}</strong>
+                  {exportFormat === "lengkap" && (
+                    <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50 p-4 rounded-xl border border-slate-200">
+                      <div>
+                        <span className="text-slate-400 block font-mono">PENYUSUN/AUTORITAS:</span>
+                        <strong className="text-slate-850 block">{pdfAuthor}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block font-mono">SKEMA TRANSLITERASI:</span>
+                        <strong className="text-slate-850 block uppercase">Arab Pegon</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block font-mono">TANGGAL PEMBUATAN:</span>
+                        <strong className="text-slate-850 block">{printDate}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block font-mono">MODE KONVERSI:</span>
+                        <strong className="text-slate-850 block">{useAI ? "Asisten AI Cerdas Gemini" : "Mesin Aturan Phonetis Kustom"}</strong>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-slate-400 block font-mono">SKEMA TRANSLITERASI:</span>
-                      <strong className="text-slate-850 block uppercase">Arab Pegon</strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block font-mono">TANGGAL PEMBUATAN:</span>
-                      <strong className="text-slate-850 block">{printDate}</strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block font-mono">MODE KONVERSI:</span>
-                      <strong className="text-slate-850 block">{useAI ? "Asisten AI Cerdas Gemini" : "Mesin Aturan Phonetis Kustom"}</strong>
-                    </div>
-                  </div>
+                  )}
 
                   {/* Dual Column Text Translation Sheets */}
                   <div className="space-y-6">
                     
                     {/* Latin Input Container */}
-                    <div className="space-y-1.5">
-                      <div className="text-[10px] text-slate-400 uppercase font-mono tracking-wider font-semibold border-b border-slate-205 pb-1">1. Teks Sumber (Latin Bahasa Indonesia):</div>
-                      <p className="text-sm text-slate-800 leading-relaxed font-sans bg-slate-100/50 p-4 rounded-xl italic">
-                        "{latinInput}"
-                      </p>
-                    </div>
+                    {exportFormat !== "pegon-saja" && (
+                      <div className="space-y-1.5">
+                        <div className="text-[10px] text-slate-400 uppercase font-mono tracking-wider font-semibold border-b border-slate-205 pb-1">1. Teks Sumber (Latin Bahasa Indonesia):</div>
+                        <p className="text-sm text-slate-800 leading-relaxed font-sans bg-slate-100/50 p-4 rounded-xl italic">
+                          "{latinInput}"
+                        </p>
+                      </div>
+                    )}
 
                     {/* Arabic Result Container */}
                     <div className="space-y-1.5">
-                      <div className="text-[10px] text-slate-400 uppercase font-mono tracking-wider font-semibold border-b border-slate-205 pb-1 text-right">2. Hasil Alih Aksara Arab (RTL):</div>
+                      {exportFormat !== "pegon-saja" && (
+                        <div className="text-[10px] text-slate-400 uppercase font-mono tracking-wider font-semibold border-b border-slate-205 pb-1 text-right">2. Hasil Alih Aksara Arab (RTL):</div>
+                      )}
                       <div 
-                        className="bg-slate-50 p-6 rounded-xl text-right leading-relaxed font-arabic font-bold text-indigo-950 text-3xl break-words"
+                        className={`bg-slate-50 p-6 rounded-xl text-right leading-relaxed font-arabic font-bold text-indigo-950 ${exportFormat === "pegon-saja" ? "text-4xl py-12" : "text-3xl"} break-words`}
                         style={{ fontFamily: `"${selectedFont}", serif`, direction: "rtl" }}
                       >
                         {finalArabicOutput}
@@ -2328,7 +2361,7 @@ export default function App() {
                     </div>
 
                     {/* Explanations index or custom descriptions */}
-                    {pdfNotes && (
+                    {exportFormat === "lengkap" && pdfNotes && (
                       <div className="p-4 border border-dashed border-slate-350 bg-amber-50/20 text-slate-500 rounded-xl space-y-1 text-xs">
                         <span className="font-bold text-slate-700 block">Keterangan / Memo Dokumen:</span>
                         <p className="leading-relaxed italic">"{pdfNotes}"</p>
@@ -2340,17 +2373,19 @@ export default function App() {
                 </div>
 
                 {/* Print Sheet Footer / Validation blocks */}
-                <div className="mt-16 pt-6 border-t border-slate-200 z-10 flex justify-between items-end text-xs">
-                  <div className="text-[10px] text-slate-400 font-mono space-y-0.5">
-                    <p>Meninggalkan jejak digital pada peramban lokal.</p>
-                    <p>Sistem Ejaan Terintegrasi • agongpor@gmail.com</p>
+                {exportFormat === "lengkap" && (
+                  <div className="mt-16 pt-6 border-t border-slate-200 z-10 flex justify-between items-end text-xs">
+                    <div className="text-[10px] text-slate-400 font-mono space-y-0.5">
+                      <p>Meninggalkan jejak digital pada peramban lokal.</p>
+                      <p>Sistem Ejaan Terintegrasi • agongpor@gmail.com</p>
+                    </div>
+                    <div className="text-center w-48 border-t border-slate-305 pt-2">
+                      <p className="text-slate-400 text-[9px] uppercase font-mono tracking-wider">Tanda Tangan Pihak Berwenang</p>
+                      <div className="h-10"></div>
+                      <p className="font-semibold text-slate-700 font-display">{pdfAuthor.split("@")[0]}</p>
+                    </div>
                   </div>
-                  <div className="text-center w-48 border-t border-slate-305 pt-2">
-                    <p className="text-slate-400 text-[9px] uppercase font-mono tracking-wider">Tanda Tangan Pihak Berwenang</p>
-                    <div className="h-10"></div>
-                    <p className="font-semibold text-slate-700 font-display">{pdfAuthor.split("@")[0]}</p>
-                  </div>
-                </div>
+                )}
 
               </div>
               
@@ -2381,50 +2416,58 @@ export default function App() {
       <div className="print-only hidden print-container bg-white p-16 space-y-10">
         
         {/* Repeating exactly the print structure without any UI elements of the page */}
-        <div className="text-center border-b-2 border-slate-900 pb-4 relative">
-          <div className="text-[10px] uppercase tracking-widest font-mono font-bold text-amber-700">DOKUMEN TRANSLITERASI RESMI</div>
-          <h2 className="font-display font-bold text-2xl text-indigo-950 mt-1 uppercase tracking-tight">{pdfTitle}</h2>
-          <p className="text-xs text-slate-400 font-mono mt-0.5">Alih Aksara Tulisan Arab Melayu & Pegon Nusantara</p>
-        </div>
+        {exportFormat === "lengkap" && (
+          <div className="text-center border-b-2 border-slate-900 pb-4 relative">
+            <div className="text-[10px] uppercase tracking-widest font-mono font-bold text-amber-700">DOKUMEN TRANSLITERASI RESMI</div>
+            <h2 className="font-display font-bold text-2xl text-indigo-950 mt-1 uppercase tracking-tight">{pdfTitle}</h2>
+            <p className="text-xs text-slate-400 font-mono mt-0.5">Alih Aksara Tulisan Arab Melayu & Pegon Nusantara</p>
+          </div>
+        )}
 
-        <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50 p-4 rounded-xl border border-slate-200">
-          <div>
-            <span className="text-slate-400 block font-mono">PENYUSUN/AUTORITAS:</span>
-            <strong className="text-slate-850 block">{pdfAuthor}</strong>
+        {exportFormat === "lengkap" && (
+          <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <div>
+              <span className="text-slate-400 block font-mono">PENYUSUN/AUTORITAS:</span>
+              <strong className="text-slate-850 block">{pdfAuthor}</strong>
+            </div>
+            <div>
+              <span className="text-slate-400 block font-mono">SKEMA TRANSLITERASI:</span>
+              <strong className="text-slate-850 block uppercase">Arab Pegon</strong>
+            </div>
+            <div>
+              <span className="text-slate-400 block font-mono">TANGGAL PEMBUATAN:</span>
+              <strong className="text-slate-850 block">{printDate}</strong>
+            </div>
+            <div>
+              <span className="text-slate-400 block font-mono">MODE KONVERSI:</span>
+              <strong className="text-slate-850 block">{useAI ? "Asisten AI Cerdas Gemini" : "Mesin Aturan Phonetis Kustom"}</strong>
+            </div>
           </div>
-          <div>
-            <span className="text-slate-400 block font-mono">SKEMA TRANSLITERASI:</span>
-            <strong className="text-slate-850 block uppercase">Arab Pegon</strong>
-          </div>
-          <div>
-            <span className="text-slate-400 block font-mono">TANGGAL PEMBUATAN:</span>
-            <strong className="text-slate-850 block">{printDate}</strong>
-          </div>
-          <div>
-            <span className="text-slate-400 block font-mono">MODE KONVERSI:</span>
-            <strong className="text-slate-850 block">{useAI ? "Asisten AI Cerdas Gemini" : "Mesin Aturan Phonetis Kustom"}</strong>
-          </div>
-        </div>
+        )}
 
         <div className="space-y-8">
-          <div className="space-y-2">
-            <div className="text-[10px] text-slate-400 uppercase font-mono tracking-wider font-semibold border-b border-slate-200 pb-1">1. Teks Sumber (Latin Bahasa Indonesia):</div>
-            <p className="text-sm text-slate-800 leading-relaxed font-sans bg-slate-50 p-4 rounded-xl italic">
-              "{latinInput}"
-            </p>
-          </div>
+          {exportFormat !== "pegon-saja" && (
+            <div className="space-y-2">
+              <div className="text-[10px] text-slate-400 uppercase font-mono tracking-wider font-semibold border-b border-slate-200 pb-1">1. Teks Sumber (Latin Bahasa Indonesia):</div>
+              <p className="text-sm text-slate-800 leading-relaxed font-sans bg-slate-50 p-4 rounded-xl italic">
+                "{latinInput}"
+              </p>
+            </div>
+          )}
 
           <div className="space-y-2">
-            <div className="text-[10px] text-slate-400 uppercase font-mono tracking-wider font-semibold border-b border-slate-200 pb-1 text-right">2. Hasil Alih Aksara Arab (RTL):</div>
+            {exportFormat !== "pegon-saja" && (
+              <div className="text-[10px] text-slate-400 uppercase font-mono tracking-wider font-semibold border-b border-slate-200 pb-1 text-right">2. Hasil Alih Aksara Arab (RTL):</div>
+            )}
             <div 
-              className="bg-slate-50 p-6 rounded-xl text-right leading-relaxed font-arabic font-bold text-indigo-950 text-3xl break-words"
+              className={`bg-slate-50 p-6 rounded-xl text-right leading-relaxed font-arabic font-bold text-indigo-950 ${exportFormat === "pegon-saja" ? "text-4xl py-12" : "text-3xl"} break-words`}
               style={{ fontFamily: `"${selectedFont}", serif`, direction: "rtl" }}
             >
               {finalArabicOutput}
             </div>
           </div>
 
-          {pdfNotes && (
+          {exportFormat === "lengkap" && pdfNotes && (
             <div className="p-4 border border-dashed border-slate-350 bg-slate-50 text-slate-500 rounded-xl space-y-1 text-xs">
               <span className="font-bold text-slate-700 block">Keterangan / Memo Dokumen:</span>
               <p className="leading-relaxed italic">"{pdfNotes}"</p>
@@ -2432,16 +2475,18 @@ export default function App() {
           )}
         </div>
 
-        <div className="pt-8 border-t border-slate-200 flex justify-between items-end text-xs">
-          <div className="text-[14px] text-slate-400 font-mono space-y-0.5">
-            <p>Sistem Ejaan Terintegrasi • agongpor@gmail.com</p>
+        {exportFormat === "lengkap" && (
+          <div className="pt-8 border-t border-slate-200 flex justify-between items-end text-xs">
+            <div className="text-[14px] text-slate-400 font-mono space-y-0.5">
+              <p>Sistem Ejaan Terintegrasi • agongpor@gmail.com</p>
+            </div>
+            <div className="text-center w-48 border-t border-slate-300 pt-2">
+              <p className="text-slate-400 text-[9px] uppercase font-mono tracking-wider">Tanda Tangan Pihak Berwenang</p>
+              <div className="h-10"></div>
+              <p className="font-semibold text-slate-700 font-display">{pdfAuthor.split("@")[0]}</p>
+            </div>
           </div>
-          <div className="text-center w-48 border-t border-slate-300 pt-2">
-            <p className="text-slate-400 text-[9px] uppercase font-mono tracking-wider">Tanda Tangan Pihak Berwenang</p>
-            <div className="h-10"></div>
-            <p className="font-semibold text-slate-700 font-display">{pdfAuthor.split("@")[0]}</p>
-          </div>
-        </div>
+        )}
 
       </div>
 
@@ -2511,9 +2556,9 @@ export default function App() {
             {/* Modal Header */}
             <div className="bg-slate-900 text-slate-100 p-5 px-6 flex justify-between items-center border-b border-slate-800">
               <div className="flex items-center space-x-2.5">
-                <Settings className="w-5 h-5 text-indigo-400 animate-spin-slow" />
+                <User className="w-5 h-5 text-indigo-400" />
                 <h3 className="font-display font-semibold text-sm md:text-base text-slate-200">
-                  Pengaturan Sinkronisasi & Perangkat
+                  Profil Pengguna & Identitas Perangkat
                 </h3>
               </div>
               <button
@@ -2527,82 +2572,56 @@ export default function App() {
             {/* Modal Body */}
             <div className="p-6 overflow-y-auto space-y-5 text-xs text-slate-705">
               <p className="text-slate-500 leading-relaxed text-[11px]">
-                Aplikasi ini dikonfigurasi untuk menyinkronkan seluruh riwayat penulisan secara berkala ke Google Sheet resmi terpusat seperti yang diminta.
+                Sesuaikan nama identitas untuk pencatatan riwayat alih aksara dan penandatanganan dokumen PDF resmi. Alamat IP serta lokasi dideteksi secara dinamis sesuai koneksi aktif perangkat masing-masing pengguna.
               </p>
 
               {/* 1. Akun Pengguna / User Email */}
               <div className="space-y-1.5">
                 <label className="block text-slate-600 uppercase font-mono font-semibold tracking-wide">
-                  Akun Pengguna (Email / Nama)
+                  Nama / Email Pengguna Anda
                 </label>
                 <input
                   type="text"
                   value={tempUserEmail}
                   onChange={(e) => setTempUserEmail(e.target.value)}
-                  placeholder="Masukkan email atau nama Anda"
+                  placeholder="Masukkan nama atau email Anda"
                   className="w-full bg-slate-50 hover:bg-slate-100/50 focus:bg-white border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-xl p-3 font-medium transition-all text-slate-800"
                 />
                 <p className="text-slate-400 text-[10px]">
-                  ID penulis saat riwayat diunggah. Contoh: <span className="font-mono bg-slate-100 px-1 rounded">agongpor@gmail.com</span>
+                  Tag penulis Anda yang saat ini aktif: <span className="font-mono bg-slate-100 px-1 rounded font-bold text-indigo-600">{tempUserEmail || "Anonim"}</span>
                 </p>
               </div>
 
-              {/* 2. Google Spreadsheet ID */}
-              <div className="space-y-1.5">
-                <label className="block text-slate-600 uppercase font-mono font-semibold tracking-wide flex justify-between">
-                  <span>ID Google Spreadsheet Terpusat</span>
-                  <span className="text-[10px] text-emerald-600 font-sans tracking-normal font-normal">Terkunci (Admin)</span>
-                </label>
-                <input
-                  type="text"
-                  readOnly
-                  disabled
-                  value={serverConfigured.spreadsheetIdValue || "1HcV7XwWX1XXez4mZRTvKMHlThMVFxJ6OCOK2_aISGT0"}
-                  className="w-full bg-slate-100 border border-slate-200 text-slate-500 rounded-xl p-3 font-mono cursor-not-allowed select-all"
-                />
-                <p className="text-slate-400 text-[10px] leading-relaxed">
-                  Penyimpanan ditetapakan secara terpusat untuk menjaga konsistensi pangkalan data pemilik aplikasi.
-                </p>
-              </div>
-
-              {/* 3. Google Apps Script Web App URL STATUS */}
-              <div className="space-y-1.5">
-                <label className="block text-slate-600 uppercase font-mono font-semibold tracking-wide flex justify-between">
-                  <span>Status Koneksi Google Apps Script</span>
-                  <span className="text-[10px] text-indigo-600 font-sans tracking-normal font-normal">Terkunci (Admin)</span>
-                </label>
-                <div className={`p-3 rounded-xl border flex items-center space-x-2 ${
-                  serverConfigured.appsScriptUrl 
-                    ? "bg-emerald-50 border-emerald-100 text-emerald-800 font-semibold" 
-                    : "bg-amber-50 border-amber-100 text-amber-800 font-semibold"
-                }`}>
-                  <span className={`w-2 h-2 rounded-full ${serverConfigured.appsScriptUrl ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`}></span>
-                  <span className="font-sans">
-                    {serverConfigured.appsScriptUrl 
-                      ? "Terhubung ke Google Web App" 
-                      : "Menunggu setup GOOGLE_APPS_SCRIPT_URL di server oleh Admin"
-                    }
-                  </span>
+              {/* 2. Informasi Koneksi & IP Masing-Masing */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <span className="block text-[10px] text-slate-400 uppercase font-mono tracking-wider font-semibold">Alamat IP Anda</span>
+                  <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-[11px] text-slate-700">
+                    {userIp || "Mendeteksi..."}
+                  </div>
                 </div>
-                {serverConfigured.appsScriptUrlValue ? (
-                  <p className="text-slate-400 text-[10px] font-mono leading-relaxed truncate px-1">
-                    Script URL: {serverConfigured.appsScriptUrlValue.slice(0, 45)}...
-                  </p>
-                ) : (
-                  <p className="text-red-400 text-[10.5px] leading-relaxed">
-                    ⚙️ Hubungi tim admin Anda untuk menentukan <code className="bg-slate-100 px-1 rounded font-mono">GOOGLE_APPS_SCRIPT_URL</code> di panel Web Console agar proses sync Google Sheets berjalan lancar.
-                  </p>
-                )}
-                <p className="text-slate-400 text-[10px] leading-relaxed">
-                  Semua alih aksara dikoordinasikan secara asinkron di belakang layar tanpa menghambat interaksi mengetik Anda.
-                </p>
+                <div className="space-y-1">
+                  <span className="block text-[10px] text-slate-400 uppercase font-mono tracking-wider font-semibold">Lokasi Terdeteksi</span>
+                  <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-[11px] text-slate-700 truncate" title={userLocation}>
+                    {userLocation || "Mendeteksi..."}
+                  </div>
+                </div>
               </div>
 
               {/* Server Diagnostics & Last Sync Result */}
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
-                <div>
-                  <span className="font-bold text-slate-700 block text-[11px]">Hasil Sinkronisasi Berkas</span>
-                  <span className="text-slate-400 text-[10px]">Riwayat diunggah otomatis dalam interval/batch 15 detik.</span>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <span className="font-bold text-slate-700 block text-[11px]">Status Sinkronisasi Google Sheets</span>
+                    <span className="text-slate-400 text-[10px]">Data diunggah terpusat secara otomatis setiap 15 detik.</span>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                    serverConfigured.appsScriptUrl 
+                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200" 
+                      : "bg-amber-50 text-amber-700 border border-amber-200"
+                  }`}>
+                    {serverConfigured.appsScriptUrl ? "Aktif" : "Menunggu Admin"}
+                  </span>
                 </div>
                 {serverSyncStatus && serverSyncStatus.lastSyncTime ? (
                   <div className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1.5 text-[10px] font-mono">
@@ -2620,15 +2639,10 @@ export default function App() {
                       <span className="text-slate-500">Baris Terunggah:</span>
                       <span className="text-slate-700 font-bold">{serverSyncStatus.rowsUploaded} baris</span>
                     </div>
-                    {serverSyncStatus.error && (
-                      <div className="mt-1.5 p-2 bg-red-50 border border-red-100 rounded text-red-700 text-[9px] whitespace-pre-wrap leading-normal">
-                        Error: {serverSyncStatus.error}
-                      </div>
-                    )}
                   </div>
                 ) : (
                   <div className="bg-slate-100/50 p-2.5 rounded-xl border border-dashed border-slate-300 text-center text-slate-400 text-[10px]">
-                    Belum ada riwayat baru yang diunggah sejak aplikasi dimuat.
+                    Belum ada riwayat baru yang diunggah sejak sesi dimulai.
                   </div>
                 )}
               </div>
@@ -2637,7 +2651,7 @@ export default function App() {
               <div className="flex items-center justify-between bg-indigo-50/55 p-3 rounded-xl border border-indigo-100 text-indigo-950 tracking-wide text-[11px]">
                 <div className="flex items-center space-x-2">
                   <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
-                  <span>Antrean Pending Lokal (Sync 15s):</span>
+                  <span>Antrean Menunggu Sinkronisasi:</span>
                 </div>
                 <strong className={queueSize > 0 ? "text-red-500 font-mono animate-bounce text-[12px]" : "text-emerald-600 font-mono"}>
                   {queueSize} Baris Riwayat
@@ -2666,6 +2680,114 @@ export default function App() {
                 className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-5 py-2 rounded-xl cursor-pointer transition-all text-xs shadow-md"
               >
                 Simpan Profil
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* MODAL PILIHAN FORMAT EKSPOR EKSPOR */}
+      {showFormatSelector && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 overflow-y-auto no-print">
+          <div className="bg-white rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl border border-slate-200 flex flex-col">
+            
+            {/* Header */}
+            <div className="bg-slate-900 text-slate-100 p-5 px-6 flex justify-between items-center border-b border-slate-800">
+              <div className="flex items-center space-x-2.5">
+                <FileDown className="w-5 h-5 text-amber-400" />
+                <h3 className="font-display font-semibold text-xs md:text-sm text-slate-200">
+                  Pilih Format Ekspor Dokumen (PDF)
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowFormatSelector(false)}
+                className="text-slate-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Selection Options Body */}
+            <div className="p-6 space-y-4">
+              <p className="text-slate-500 text-[11px] leading-relaxed">
+                Silakan pilih tata letak (layout) dokumen yang paling sesuai dengan kebutuhan publikasi atau arsip Anda sebelum mencetak:
+              </p>
+
+              <div className="space-y-3">
+                {/* Opsi 1: Lengkap */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExportFormat("lengkap");
+                    setShowFormatSelector(false);
+                    setShowPrintPreview(true);
+                  }}
+                  className="w-full text-left p-4 rounded-2xl border border-slate-200 hover:border-indigo-500 hover:bg-slate-50/50 transition-all flex items-start space-x-4 group cursor-pointer"
+                >
+                  <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl group-hover:bg-indigo-100 transition-colors shrink-0">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div className="space-y-1">
+                    <h4 className="font-semibold text-slate-800 text-xs">Lengkap (Dengan Header & TTD)</h4>
+                    <p className="text-slate-400 text-[10px] leading-relaxed">
+                      Dilengkapi dengan kepala surat (kop), metadata transliterasi, teks asli Latin, hasil alih aksara Arab Pegon, catatan memo, dan tanda tangan digital resmi.
+                    </p>
+                  </div>
+                </button>
+
+                {/* Opsi 2: Latin & Arab Sederhana */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExportFormat("latin-arab");
+                    setShowFormatSelector(false);
+                    setShowPrintPreview(true);
+                  }}
+                  className="w-full text-left p-4 rounded-2xl border border-slate-200 hover:border-indigo-500 hover:bg-slate-50/50 transition-all flex items-start space-x-4 group cursor-pointer"
+                >
+                  <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl group-hover:bg-emerald-100 transition-colors shrink-0">
+                    <BookOpen className="w-5 h-5" />
+                  </div>
+                  <div className="space-y-1">
+                    <h4 className="font-semibold text-slate-800 text-xs">Latin & Arab Pegon (Berdampingan - Tanpa Header & TTD)</h4>
+                    <p className="text-slate-400 text-[10px] leading-relaxed">
+                      Hanya menampilkan teks sumber Latin dan hasil tulisan Arab Pegon yang bersih secara berdampingan tanpa kop administratif dan tanda tangan.
+                    </p>
+                  </div>
+                </button>
+
+                {/* Opsi 3: Pegon Saja */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExportFormat("pegon-saja");
+                    setShowFormatSelector(false);
+                    setShowPrintPreview(true);
+                  }}
+                  className="w-full text-left p-4 rounded-2xl border border-slate-200 hover:border-indigo-500 hover:bg-slate-50/50 transition-all flex items-start space-x-4 group cursor-pointer"
+                >
+                  <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl group-hover:bg-amber-100 transition-colors shrink-0">
+                    <Sparkles className="w-5 h-5" />
+                  </div>
+                  <div className="space-y-1">
+                    <h4 className="font-semibold text-slate-800 text-xs">Hasil Arab Pegon Saja (Tanpa Header & TTD)</h4>
+                    <p className="text-slate-400 text-[10px] leading-relaxed">
+                      Format deskriptif super minimalis yang hanya menampilkan karya hasil tulisan Arab Pegon dalam ukuran besar, tanpa teks Latin pendamping maupun ornamen administratif lainnya.
+                    </p>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowFormatSelector(false)}
+                className="bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold px-4 py-2 rounded-xl cursor-pointer transition-all text-xs"
+              >
+                Batal
               </button>
             </div>
 
