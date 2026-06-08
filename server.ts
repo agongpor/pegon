@@ -44,8 +44,8 @@ app.post("/api/translate-gemini", async (req: Request, res: Response) => {
     const isReverse = direction === "pegon-to-latin";
 
     const systemPrompt = isReverse
-      ? `Anda adalah ahli bahasa linguistik Indonesia dan daerah (Jawa/Sunda) yang menguasai sistem penulisan abjad Arab Pegon dan Arab Melayu (Jawi).
-Tugas Anda adalah melakukan transliterasi balik dari teks bertulisan aksara Arab Pegon (atau Jawi) menjadi teks Latin bahasa Indonesia yang tepat, baku, dan natural.
+      ? `Anda adalah ahli bahasa linguistik Indonesia dan daerah (Jawa/Sunda) yang menguasai secara mendalam sistem penulisan abjad Arab Pegon.
+Tugas Anda adalah melakukan transliterasi balik dari teks bertulisan aksara Arab Pegon Jawa/Sunda menjadi teks Latin bahasa Indonesia yang tepat, baku, dan natural.
 Silakan tebak dan kembalikan vokal tersembunyi seperti pepet (e), perbaiki ejaan sesuai KBBI (Kamus Besar Bahasa Indonesia), dan pisahkan kata dengan benar.
 
 PENTING - KETENTUAN KHUSUS AYAT AL-QUR'AN DAN HADITS:
@@ -62,18 +62,17 @@ Harap berikan respons sebagai objek JSON dengan format schema berikut:
   "translation": "teks latin hasil pembacaan",
   "explanation": "penjelasan minimal mengenai perakitan kata, pembacaan vokal pepet, atau identitas rujukan singkat tanpa kata 'surat/surah' dalam aksara arab baku tanpa arti/tafsir"
 }`
-      : `Anda adalah ahli bahasa linguistik dan kaligrafi tradisional Indonesia yang menguasai sistem penulisan Arab Melayu (Jawi) dan Arab Pegon Jawa/Sunda.
-Tugas Anda adalah melakukan transliterasi teks Latin bahasa Indonesia menjadi tulisan Arab yang sesuai dengan standar pilihan pengguna secara akurat, kontekstual, dan rapi.
+      : `Anda adalah ahli bahasa linguistik dan kaligrafi tradisional Indonesia yang menguasai sistem penulisan Arab Pegon Jawa/Sunda.
+Tugas Anda adalah melakukan transliterasi teks Latin bahasa Indonesia menjadi tulisan Arab Pegon yang akurat, kontekstual, dan rapi.
 
 PENTING - KETENTUAN KHUSUS AYAT AL-QUR'AN DAN HADITS:
 Jika teks input mengandung kutipan ayat Al-Qur'an (baik teks latin ayatnya, terjemahan, ataupun penyebutan surah/ayat seperti 'QS Al Baqarah' atau 'Al-Baqarah:183') atau kutipan lafaz / teks Hadits (seperti 'innama a'malu binniyat' atau 'Hadits pilar islam'):
-1. Tuliskan teks Arab yang murni/orisinil dan BAKU, lengkap dengan tanda harakat/syakal secara sempurna (fathah, dammah, kasrah, sukun, shaddah, tanween). JANGAN menggunakan ejaan modifikasi Pegon atau Jawi tanpa harakat jika itu adalah kutipan Al-Qur'an/Hadits.
+1. Tuliskan teks Arab yang murni/orisinil dan BAKU, lengkap dengan tanda harakat/syakal secara sempurna (fathah, dammah, kasrah, sukun, shaddah, tanween). JANGAN menggunakan ejaan modifikasi Pegon tanpa harakat jika itu adalah kutipan Al-Qur'an/Hadits.
 2. Sertakan sumber rujukan/dalilnya secara lengkap di akhir teks Arab tersebut yang ditulis dalam AKSARA ARAB BAKU (Arab Standar) (misalnya: (البقرة: ١٨٣) atau (رواية البخاري)) agar valid, informatif, dan autentik bagi pembaca. PENTING: JANGAN cantumkan kata "سورة" (surat/surah) di awal nama surah, langsung tulis nama surahnya (contoh: "(البقرة: ١٨٣)" bukan "(سورة البقرة: ١٨٣)").
 3. JANGAN menambahkan terjemahan bahasa Indonesia, arti kata, detail tafsir, ataupun makna kandungan ayat/hadits ke dalam bagian "explanation". Bagian explanation hanya diisi penjelasan linguistik teknis transliterasi atau nama rujukan dalil secara singkat ditulis dalam AKSARA ARAB BAKU (Arab Standar) tanpa kata "سورة" atau "surat" di awal surah (misal: "مستخرج من البقرة: ١٨٣").
 
-PILIHAN FORMAT TRANSLITERASI UMUM:
-- "jawi" (Arab Melayu): Gunakan kaidah baku Arab Melayu. Perhatikan penggunaan huruf saksi (alif, ya, wawu), penghapusan vokal di suku kata tertutup, huruf k ganda/glottal stop sebagai qaf di akhir kata (seperti 'bapak' -> 'باڤق'), imbuhan terikat (di-, se-, ke-) yang disatukan, serta penulisan kata serapan Arab kustom.
-- "pegon" (Arab Pegon Jawa/Sunda): Tulis secara fonetis lengkap menggunakan huruf saksi Pegon tradisional, termasuk menyemir vokal i, u, o, dan e secara jelas.
+FORMAT TRANSLITERASI:
+- "pegon" (Arab Pegon Jawa/Sunda): Tulis secara fonetis lengkap menggunakan huruf saksi Pegon tradisional, termasuk menyemir vokal i, u, o, dan e secara jelas. Kunci transliterasi HANYA pada Arab Pegon.
 
 ATURAN REFERENSI KUSTOM:
 Pengguna telah memasukkan aturan referensi kustom di bawah ini. Prioritaskan aturan dan kesepakatan penulisan kata ini jika diberikan, kecuali untuk ayat Al-Qur'an atau Hadits:
@@ -86,16 +85,16 @@ Harap berikan respons sebagai objek JSON dengan format schema berikut:
 }`;
 
     const prompt = isReverse
-      ? `Lakukan transliterasi teks Arab Pegon/Jawi berikut kembali menjadi teks alfabet Latin Bahasa Indonesia yang baku.
+      ? `Lakukan transliterasi teks Arab Pegon berikut kembali menjadi teks alfabet Latin Bahasa Indonesia yang baku.
 
-Teks Arab:
+Teks Arab Pegon:
 "${text}"`
-      : `Lakukan transliterasi teks Latin Indonesia berikut menjadi tulisan Arab berformat "${preset || "pegon"}".
+      : `Lakukan transliterasi teks Latin Indonesia berikut menjadi tulisan Arab berformat Arab Pegon.
 
 Teks Latin:
 "${text}"
 
-Tulis hasilnya dalam bahasa Arab yang rapi dengan arah Right-to-Left (RTL) yang sempurna menggunakan huruf-huruf Arab Jawi/Pegon seperti چ, ڠ, ݢ, ڽ, ڤ.`;
+Tulis hasilnya dalam bahasa Arab Pegon yang rapi dengan arah Right-to-Left (RTL) yang sempurna menggunakan huruf-huruf khas Pegon Jawa seperti چ, ڠ, ࢴ, ڽ, ڤ.`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3.5-flash",
@@ -108,11 +107,11 @@ Tulis hasilnya dalam bahasa Arab yang rapi dengan arah Right-to-Left (RTL) yang 
           properties: {
             translation: {
               type: Type.STRING,
-              description: isReverse ? "Hasil pembacaan aksara ke teks Latin biasa." : "Hasil transliterasi Arab Melayu / Pegon.",
+              description: isReverse ? "Hasil pembacaan aksara ke teks Latin biasa." : "Hasil transliterasi Arab Pegon.",
             },
             explanation: {
               type: Type.STRING,
-              description: "Penjelasan linguistik dan detail ejaan yang digunakan.",
+              description: "Penjelasan linguistik dan detail ejaan Arab Pegon yang digunakan.",
             },
           },
           required: ["translation", "explanation"],

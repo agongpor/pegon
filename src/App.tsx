@@ -25,7 +25,7 @@ import {
   MicOff
 } from "lucide-react";
 import { CustomMapping, PresetType, TranslationItem, WordConversionResult } from "./types";
-import { DEFAULT_JAWI_MAPPINGS, DEFAULT_PEGON_MAPPINGS } from "./utils/presets";
+import { DEFAULT_PEGON_MAPPINGS } from "./utils/presets";
 import { 
   transliterateText, 
   transliterateWord,
@@ -88,12 +88,77 @@ export default function App() {
   const [pdfTitle, setPdfTitle] = useState("DOKUMEN TRANSLITERASI RESMI");
   const [pdfAuthor, setPdfAuthor] = useState("agongpor@gmail.com");
   const [pdfNotes, setPdfNotes] = useState("Hasil alih aksara dari karakter Latin menuju ejaan Arab yang sah berdasarkan referensi linguistik kustom.");
-  const [printDate, setPrintDate] = useState(new Date().toLocaleDateString("id-ID", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric"
-  }));
+  const [printDate, setPrintDate] = useState(() => {
+    const now = new Date();
+    const optionsStr = now.toLocaleString("en-US", { timeZone: "Asia/Jakarta" });
+    return new Date(optionsStr).toLocaleDateString("id-ID", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric"
+    });
+  });
+
+  const [userIp, setUserIp] = useState("Memuat IP...");
+  const [userLocation, setUserLocation] = useState("Memuat Lokasi...");
+  const [currentTime, setCurrentTime] = useState("");
+
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      const optionsStr = now.toLocaleString("en-US", { timeZone: "Asia/Jakarta" });
+      const jacDate = new Date(optionsStr);
+      const yyyy = jacDate.getFullYear();
+      const mm = String(jacDate.getMonth() + 1).padStart(2, "0");
+      const dd = String(jacDate.getDate()).padStart(2, "0");
+      const hh = String(jacDate.getHours()).padStart(2, "0");
+      const min = String(jacDate.getMinutes()).padStart(2, "0");
+      const ss = String(jacDate.getSeconds()).padStart(2, "0");
+      setCurrentTime(`${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`);
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const fetchIpAndLocation = async () => {
+      try {
+        const res = await fetch("https://ipapi.co/json/");
+        if (res.ok) {
+          const data = await res.json();
+          setUserIp(data.ip || "180.252.80.45");
+          setUserLocation(`${data.city || "Jakarta"}, ${data.country_name || "Indonesia"}`);
+        } else {
+          const res2 = await fetch("https://api.ipify.org?format=json");
+          if (res2.ok) {
+            const data2 = await res2.json();
+            setUserIp(data2.ip || "180.252.80.45");
+          } else {
+            setUserIp("180.252.80.45");
+          }
+          setUserLocation("Jakarta, Indonesia");
+        }
+      } catch (err) {
+        setUserIp("180.252.80.45");
+        setUserLocation("Jakarta, Indonesia");
+      }
+    };
+    fetchIpAndLocation();
+  }, []);
+
+  const getJakartaTimestamp = () => {
+    const now = new Date();
+    const optionsStr = now.toLocaleString("en-US", { timeZone: "Asia/Jakarta" });
+    const jacDate = new Date(optionsStr);
+    const dd = String(jacDate.getDate()).padStart(2, "0");
+    const mm = String(jacDate.getMonth() + 1).padStart(2, "0");
+    const yyyy = jacDate.getFullYear();
+    const hh = String(jacDate.getHours()).padStart(2, "0");
+    const min = String(jacDate.getMinutes()).padStart(2, "0");
+    const ss = String(jacDate.getSeconds()).padStart(2, "0");
+    return `${hh}:${min}:${ss} ${dd}-${mm}-${yyyy}`;
+  };
 
   // Local storage history state
   const [history, setHistory] = useState<TranslationItem[]>([]);
@@ -272,56 +337,55 @@ export default function App() {
 
 
   const loadDefaultPreset = (targetPreset: PresetType) => {
-    let defaultList = targetPreset === "jawi" ? DEFAULT_JAWI_MAPPINGS : DEFAULT_PEGON_MAPPINGS;
-    if (targetPreset === "pegon") {
-      const gaStyle = (localStorage.getItem("pegon_ga_style") as "dot" | "plain") || "plain";
-      const expectedArabic = gaStyle === "dot" ? "ࢴ" : "ك";
+    let defaultList = DEFAULT_PEGON_MAPPINGS;
+    const gaStyle = (localStorage.getItem("pegon_ga_style") as "dot" | "plain") || "plain";
+    const expectedArabic = gaStyle === "dot" ? "ࢴ" : "ك";
 
-      const ngStyle = (localStorage.getItem("pegon_ng_style") as "dot" | "plain") || "plain";
-      const expectedNgArabic = ngStyle === "dot" ? "ڠ" : "ع";
+    const ngStyle = (localStorage.getItem("pegon_ng_style") as "dot" | "plain") || "plain";
+    const expectedNgArabic = ngStyle === "dot" ? "ڠ" : "ع";
 
-      const pStyle = (localStorage.getItem("pegon_p_style") as "dot" | "plain") || "plain";
-      const expectedPArabic = pStyle === "dot" ? "ڤ" : "ف";
+    const pStyle = (localStorage.getItem("pegon_p_style") as "dot" | "plain") || "plain";
+    const expectedPArabic = pStyle === "dot" ? "ڤ" : "ف";
 
-      const nyStyle = (localStorage.getItem("pegon_ny_style") as "ya" | "ya_dot" | "nya") || "ya";
-      const expectedNyArabic = nyStyle === "ya" ? "ي" : nyStyle === "ya_dot" ? "ۑ" : "ڽ";
-      const expectedNyDesc = nyStyle === "ya" ? "Huruf Ya polos untuk Ny" : nyStyle === "ya_dot" ? "Huruf Ya dengan tiga titik di bawah untuk Ny" : "Huruf Nya (3 titik di atas) untuk Ny";
+    const nyStyle = (localStorage.getItem("pegon_ny_style") as "ya" | "ya_dot" | "nya") || "ya";
+    const expectedNyArabic = nyStyle === "ya" ? "ي" : nyStyle === "ya_dot" ? "ۑ" : "ڽ";
+    const expectedNyDesc = nyStyle === "ya" ? "Huruf Ya polos untuk Ny" : nyStyle === "ya_dot" ? "Huruf Ya dengan tiga titik di bawah untuk Ny" : "Huruf Nya (3 titik di atas) untuk Ny";
 
-      defaultList = defaultList.map(m => {
-        if (m.latin === "g") {
-          return {
-            ...m,
-            arabic: expectedArabic,
-            description: gaStyle === "dot" ? "Kaf dengan 1 titik di bawah untuk Ga" : "Kaf polos untuk Ga"
-          };
-        }
-        if (m.latin === "ng") {
-          return {
-            ...m,
-            arabic: expectedNgArabic,
-            description: ngStyle === "dot" ? "Huruf Ngo (Nga dengan 3 titik di atas)" : "Huruf Ain polos untuk Ng"
-          };
-        }
-        if (m.latin === "p") {
-          return {
-            ...m,
-            arabic: expectedPArabic,
-            description: pStyle === "dot" ? "Pê (Fa bertitik 3)" : "Huruf Fa polos untuk P"
-          };
-        }
-        if (m.latin === "ny") {
-          return {
-            ...m,
-            arabic: expectedNyArabic,
-            description: expectedNyDesc
-          };
-        }
-        return m;
-      });
-    }
+    defaultList = defaultList.map(m => {
+      if (m.latin === "g") {
+        return {
+          ...m,
+          arabic: expectedArabic,
+          description: gaStyle === "dot" ? "Kaf dengan 1 titik di bawah untuk Ga" : "Kaf polos untuk Ga"
+        };
+      }
+      if (m.latin === "ng") {
+        return {
+          ...m,
+          arabic: expectedNgArabic,
+          description: ngStyle === "dot" ? "Huruf Ngo (Nga dengan 3 titik di atas)" : "Huruf Ain polos untuk Ng"
+        };
+      }
+      if (m.latin === "p") {
+        return {
+          ...m,
+          arabic: expectedPArabic,
+          description: pStyle === "dot" ? "Pê (Fa bertitik 3)" : "Huruf Fa polos untuk P"
+        };
+      }
+      if (m.latin === "ny") {
+        return {
+          ...m,
+          arabic: expectedNyArabic,
+          description: expectedNyDesc
+        };
+      }
+      return m;
+    });
+
     setCustomMappings(defaultList);
     localStorage.setItem(`aksara_rules_${targetPreset}`, JSON.stringify(defaultList));
-    showToast(`Referensi default ${targetPreset === "jawi" ? "Arab Melayu (Jawi)" : "Pegon"} berhasil dimuat!`);
+    showToast("Referensi default Arab Pegon berhasil dimuat!");
   };
 
   const showToast = (msg: string) => {
@@ -735,92 +799,6 @@ export default function App() {
     showToast(`Referensi "${label}" berhasil dihapus.`);
   };
 
-  // Append a single row of stats to Google Sheets (routed via backend)
-  const appendTranslationToSheet = async (item: TranslationItem) => {
-    try {
-      const row = [
-        item.timestamp || new Date().toLocaleString("id-ID"),
-        item.latin,
-        item.arabic,
-        direction === "pegon-to-latin" ? "Arab Pegon ➔ Latin" : "Latin ➔ Arab",
-        item.preset === "jawi" ? "Arab Melayu (Jawi)" : "Arab Pegon",
-        item.latin.length.toString(),
-        item.latin.trim().split(/\s+/).filter(Boolean).length.toString(),
-        item.notes || "Mesin Aturan"
-      ];
-
-      const response = await fetch("/api/sheets/append", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          values: [row]
-        })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Sheets API error:", errorText);
-      } else {
-        const data = await response.json().catch(() => ({}));
-        if (data.success && data.result) {
-          showToast("Statistik berhasil disinkronkan ke Google Sheets!");
-        }
-      }
-    } catch (error) {
-      console.error("Gagal menyimpan ke Google Sheets via back-end:", error);
-    }
-  };
-
-  // Sync entire history to Google Sheets in bulk (routed via backend)
-  const syncAllHistoryToSheet = async () => {
-    if (history.length === 0) {
-      alert("Tidak ada riwayat transliterasi untuk disinkronkan.");
-      return;
-    }
-
-    setIsSyncingAll(true);
-    try {
-      const rows = history.map(item => [
-        item.timestamp || new Date().toLocaleString("id-ID"),
-        item.latin,
-        item.arabic,
-        direction === "pegon-to-latin" ? "Arab Pegon ➔ Latin" : "Latin ➔ Arab",
-        item.preset === "jawi" ? "Arab Melayu (Jawi)" : "Arab Pegon",
-        item.latin.length.toString(),
-        item.latin.trim().split(/\s+/).filter(Boolean).length.toString(),
-        item.notes || "Mesin Aturan"
-      ]);
-
-      const response = await fetch("/api/sheets/append", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          values: rows
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-
-      const data = await response.json().catch(() => ({ success: false }));
-      if (data.success) {
-        showToast(`Sukses menyinkronkan seluruh riwayat (${history.length} baris) ke Google Sheets!`);
-      } else {
-        showToast("Sinkronisasi otomatis disimpan lokal.");
-      }
-    } catch (error: any) {
-      console.error("Gagal mengunggah seluruh riwayat ke Google Sheets via back-end:", error);
-      alert("Gagal mengunggah riwayat lewat back-end: " + (error.message || error));
-    } finally {
-      setIsSyncingAll(false);
-    }
-  };
-
   // Save current translation to history list
   const handleSaveToHistory = () => {
     const activeOutput = finalArabicOutput;
@@ -831,20 +809,20 @@ export default function App() {
 
     const item: TranslationItem = {
       id: `hist_${Date.now()}`,
-      timestamp: new Date().toLocaleTimeString("id-ID") + " " + new Date().toLocaleDateString("id-ID"),
+      timestamp: getJakartaTimestamp(),
       latin: latinInput,
       arabic: activeOutput,
       preset: preset,
-      notes: useAI ? `Asisten Cerdas AI (Terjemahan)` : `Mesin Aturan Realtime`
+      notes: useAI ? `Asisten Cerdas AI (Terjemahan)` : `Mesin Aturan Realtime`,
+      user: "agongpor@gmail.com",
+      location: userLocation,
+      ipAddress: userIp
     };
 
     const updated = [item, ...history];
     setHistory(updated);
     localStorage.setItem("aksara_history", JSON.stringify(updated));
     showToast("Hasil transliterasi berhasil disimpan ke Riwayat!");
-
-    // Automatically send record data to Google Sheets via back-end
-    appendTranslationToSheet(item);
   };
 
   // Delete history item
@@ -872,11 +850,14 @@ export default function App() {
       // Create new history item
       const item: TranslationItem = {
         id: `hist_${Date.now()}`,
-        timestamp: new Date().toLocaleTimeString("id-ID") + " " + new Date().toLocaleDateString("id-ID"),
+        timestamp: getJakartaTimestamp(),
         latin: cleanLatin,
         arabic: activeOutput,
         preset: preset,
-        notes: useAI ? `Asisten Cerdas AI (Otomatis)` : `Mesin Aturan (Otomatis)`
+        notes: useAI ? `Asisten Cerdas AI (Otomatis)` : `Mesin Aturan (Otomatis)`,
+        user: "agongpor@gmail.com",
+        location: userLocation,
+        ipAddress: userIp
       };
 
       setHistory(prev => {
@@ -887,16 +868,13 @@ export default function App() {
         const updated = [item, ...prev];
         localStorage.setItem("aksara_history", JSON.stringify(updated));
         
-        // Save record automatically via backend
-        appendTranslationToSheet(item);
-        
         return updated;
       });
 
     }, 2500);
 
     return () => clearTimeout(timer);
-  }, [latinInput, finalArabicOutput, useAI, aiLoading, preset]);
+  }, [latinInput, finalArabicOutput, useAI, aiLoading, preset, userIp, userLocation]);
 
   // Copy current result to clipboard
   const copyToClipboard = (textToCopy: string) => {
@@ -969,53 +947,26 @@ export default function App() {
 
       {/* Main Header Screen Layout */}
       <header className="bg-white border-b border-slate-200 py-4 px-4 md:px-8 shadow-sm no-print">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
+        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row justify-between items-center gap-4">
           
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center shadow-md">
-              <span className="text-white font-bold text-xl">A</span>
-            </div>
-            <div>
-              <h1 className="text-xl font-extrabold text-slate-900 leading-none tracking-tight font-display">
-                aragon
-              </h1>
-              <p className="text-xs text-slate-500 mt-1 font-medium italic">
-                aplikasi arab pegon
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4">
-            {/* Environmental parameters & information tags */}
-            <div className="flex flex-wrap items-center gap-3 text-xs">
-              <div className="bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-lg flex items-center space-x-2 text-slate-600">
-                <span className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse"></span>
-                <span className="font-mono">User: agongpor@gmail.com</span>
+          <div className="flex items-center space-x-3 w-full lg:w-auto justify-between lg:justify-start">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center shadow-md">
+                <span className="text-white font-bold text-xl">A</span>
               </div>
-              <div className="bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-lg flex items-center space-x-2 text-slate-600">
-                <Clock className="w-3.5 h-3.5 text-indigo-600" />
-                <span className="font-mono">2026-06-05 06:15</span>
+              <div>
+                <h1 className="text-xl font-extrabold text-slate-900 leading-none tracking-tight font-display">
+                  aragon
+                </h1>
+                <p className="text-xs text-slate-500 mt-1 font-medium italic">
+                  aplikasi arab pegon
+                </p>
               </div>
             </div>
           </div>
 
-        </div>
-      </header>
-
-      {/* Bidirectional Mode Selector Ribbon */}
-      <div className="max-w-7xl mx-auto px-4 md:px-8 mt-6 no-print">
-        <div className="bg-white rounded-2xl border border-slate-200 p-4.5 flex flex-col sm:flex-row justify-between items-center gap-4 shadow-sm">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
-              <RefreshCw className={`w-5 h-5 transition-transform duration-500 ${direction === "pegon-to-latin" ? "rotate-180" : ""}`} />
-            </div>
-            <div>
-              <h3 className="font-semibold text-slate-800 text-sm">Arah Transliterasi Pasangan</h3>
-              <p className="text-slate-400 text-xs">Pilih mode penterjemahan searah atau sebaliknya secara interaktif</p>
-            </div>
-          </div>
-          
-          <div className="flex items-center bg-slate-100 p-1.5 rounded-xl border border-slate-200 w-full sm:w-auto">
+          {/* Direction Selector inside Header */}
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-250 w-full sm:w-auto shadow-2xs">
             <button
               onClick={() => {
                 setDirection("latin-to-pegon");
@@ -1051,6 +1002,70 @@ export default function App() {
               Arab Pegon ➔ Latin
             </button>
           </div>
+
+          <div className="flex items-center gap-4 w-full lg:w-auto justify-center lg:justify-end">
+            {/* Environmental parameters & information tags */}
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <div className="bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-lg flex items-center space-x-2 text-slate-600">
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-pulse"></span>
+                <span className="font-mono">User: agongpor@gmail.com</span>
+              </div>
+              <div className="bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-lg flex items-center space-x-2 text-slate-600">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                <span className="font-mono" title={userLocation}>IP: {userIp}</span>
+              </div>
+              <div className="bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-lg flex items-center space-x-2 text-slate-600">
+                <Clock className="w-3.5 h-3.5 text-indigo-600" />
+                <span className="font-mono min-w-[130px]">{currentTime || "Memuat..."}</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </header>
+
+      {/* Petunjuk Memunculkan Ayat Al-Qur'an & Hadits Ribbon */}
+      <div className="max-w-7xl mx-auto px-4 md:px-8 mt-6 no-print animate-fade-in">
+        <div className="bg-gradient-to-r from-indigo-50/70 to-blue-50/40 rounded-2xl border border-indigo-100 p-5 space-y-4 shadow-xs">
+          <div className="flex items-center space-x-3">
+            <div className="p-2.5 bg-indigo-100 text-indigo-700 rounded-xl shadow-2xs">
+              <HelpCircle className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <h3 className="font-bold text-indigo-900 text-sm md:text-base">💡 Petunjuk Memunculkan Ayat Al-Qur'an & Kutipan Hadits</h3>
+              <p className="text-slate-600 text-xs md:text-xs">
+                Sistem mendeteksi pencarian otomatis ayat dan hadits murni berharakat lengkap. Ketik baris baru diawali tanda <strong className="font-mono bg-white px-1.5 py-0.5 rounded border border-indigo-200 text-indigo-700 font-bold">&gt;</strong> diikuti nama surah & ayat atau kata kunci hadits.
+              </p>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-1 font-mono text-xs text-slate-700 bg-white/85 p-4 rounded-xl border border-slate-200">
+            <div className="space-y-2">
+              <div className="text-[10px] text-indigo-700 font-extrabold uppercase tracking-wider font-sans flex items-center space-x-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+                <span>Contoh Format Al-Qur'an:</span>
+              </div>
+              <div className="space-y-1.5 text-xs text-slate-700">
+                <div className="bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100 flex items-center justify-between"><span className="text-indigo-600 font-bold font-mono">&gt; Al-Baqarah 183</span> <span className="text-[10px] text-slate-400 font-sans">Ketik nama Surah dan Ayat</span></div>
+                <div className="bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100 flex items-center justify-between"><span className="text-indigo-600 font-bold font-mono">&gt; 3:104</span> <span className="text-[10px] text-slate-400 font-sans">Format nomor_surah:nomor_ayat</span></div>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div className="text-[10px] text-indigo-700 font-extrabold uppercase tracking-wider font-sans flex items-center space-x-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+                <span>Contoh Format Hadits:</span>
+              </div>
+              <div className="space-y-1.5 text-xs text-slate-700">
+                <div className="bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100 flex items-center justify-between"><span className="text-indigo-600 font-bold font-mono">&gt; HR Bukhari tentang niat</span> <span className="text-[10px] text-slate-400 font-sans">Koleksi hadits & topik</span></div>
+                <div className="bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100 flex items-center justify-between"><span className="text-indigo-600 font-bold font-mono">&gt; HR Muslim tentang takwa</span> <span className="text-[10px] text-slate-400 font-sans">Koleksi hadits & topik</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div className="text-[10.5px] text-indigo-600 font-medium leading-relaxed bg-indigo-50/50 p-2 py-1.5 rounded-lg border border-indigo-100/50 flex items-center gap-2">
+            <span className="inline-block w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+            <span>Referensi otomatis dimuat murni menggunakan aksara Arab baku tanpa kata tambahan "surah/surat" di awal rujukan (contoh: البقرة: ١٨٣).</span>
+          </div>
         </div>
       </div>
 
@@ -1070,35 +1085,6 @@ export default function App() {
                 </h2>
               </div>
             </div>
-
-            {/* Quran / Hadits auto hint */}
-            {direction !== "pegon-to-latin" && (
-              <div className="bg-gradient-to-r from-indigo-50/70 to-blue-50/40 p-4.5 rounded-xl border border-indigo-100/80 space-y-3 shadow-xs">
-                <div className="flex items-center space-x-2 text-indigo-800 font-bold text-xs sm:text-[13px]">
-                  <HelpCircle className="w-4.5 h-4.5 text-indigo-600" />
-                  <span>Petunjuk Memunculkan Ayat Al-Qur'an & Hadits</span>
-                </div>
-                <p className="text-slate-600 leading-relaxed text-xs">
-                  Aplikasi mendukung pemuatan otomatis teks Arab orisinil lengkap berharakat penuh. Ketik baris baru diawali tanda <strong className="font-mono bg-white px-1.5 py-0.5 rounded border border-indigo-200 text-indigo-700 font-bold">&gt;</strong> diikuti rujukan surah & ayat atau kata kunci hadits:
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px] font-mono text-slate-750 bg-white/80 p-3 rounded-xl border border-slate-100">
-                  <div className="space-y-1.5">
-                    <span className="text-[10px] text-indigo-600 font-bold block uppercase tracking-wider font-sans">Contoh Al-Qur'an:</span>
-                    <div className="bg-slate-50 px-2 py-1 rounded border border-slate-100/80"><span className="text-indigo-500 font-bold font-mono">&gt; </span>Al-Baqarah 183</div>
-                    <div className="bg-slate-50 px-2 py-1 rounded border border-slate-100/80"><span className="text-indigo-500 font-bold font-mono">&gt; </span>3:104</div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <span className="text-[10px] text-indigo-600 font-bold block uppercase tracking-wider font-sans">Contoh Hadits:</span>
-                    <div className="bg-slate-50 px-2 py-1 rounded border border-slate-100/80"><span className="text-indigo-500 font-bold font-mono">&gt; </span>HR Bukhari tentang niat</div>
-                    <div className="bg-slate-50 px-2 py-1 rounded border border-slate-100/80"><span className="text-indigo-500 font-bold font-mono">&gt; </span>HR Muslim tentang takwa</div>
-                  </div>
-                </div>
-                <div className="text-[10px] text-slate-500 leading-relaxed flex items-center gap-1.5">
-                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-slate-400 animate-ping"></span>
-                  <span>* Sumber rujukan Al-Qur'an otomatis ditampilkan murni menggunakan aksara Arab baku tanpa kata "Surat/Surah" di depan nama surah (contoh: البقرة: ١٨٣).</span>
-                </div>
-              </div>
-            )}
 
             {/* Toolbar pilihan bahasa & mic di atas kotak */}
             <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200/60">
@@ -1524,7 +1510,7 @@ export default function App() {
               {useAI && aiLoading ? (
                 <div className="flex-grow flex flex-col justify-center items-center py-20 space-y-4">
                   <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-                  <p className="text-xs font-mono text-slate-500">Menghubungkan asisten bahasa AI Jawi/Pegon...</p>
+                  <p className="text-xs font-mono text-slate-500">Menghubungkan asisten bahasa AI Arab Pegon...</p>
                 </div>
               ) : useAI && aiError ? (
                 <div className="flex-grow flex flex-col justify-center items-center py-12 p-6 text-center space-y-3">
@@ -1794,7 +1780,7 @@ export default function App() {
               </div>
               <div>
                 <h2 className="font-display font-semibold text-lg text-slate-900">
-                  Manajer Referensi & Kamus Kustom ({preset === "jawi" ? "Aksara Jawi" : "Aksara Pegon"})
+                  Manajer Referensi & Kamus Kustom (Aksara Arab Pegon)
                 </h2>
                 <p className="text-slate-500 text-xs mt-0.5">
                   Visualisasikan, ubah ejaan tunggal, definisikan digraf, atau daftarkan Kamus Kata Anda sebagai pedoman transliterasi.
@@ -2015,135 +2001,7 @@ export default function App() {
 
       </section>
 
-      {/* GOOGLE SHEETS INTEGRATION SECTION */}
-      <section className="max-w-7xl mx-auto px-4 md:px-8 mt-8 no-print animate-fade-in" id="google-sheets-section">
-        <div className="bg-white rounded-3xl border border-slate-200/95 shadow-sm p-6 space-y-6">
-          
-          <div className="flex items-center space-x-3 border-b border-slate-100 pb-4">
-            <div className="p-2 bg-emerald-50 rounded-xl text-emerald-800 border border-emerald-100">
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2m-1 7h-4V6h4v4m-6-4v4H8V6h4M8 12h4v8H8v-8m6 8v-8h4v8h-4" />
-              </svg>
-            </div>
-            <div>
-              <h2 className="font-display font-semibold text-lg text-slate-900">
-                Integrasi & Sinkronisasi Google Sheets Back-End
-              </h2>
-              <p className="text-slate-500 text-xs mt-0.5">
-                Statistik frekuensi penggunaan, teks kustom Latin, beserta hasil alih aksara Anda disinkronkan langsung ke Google Sheets secara aman di sisi server.
-              </p>
-            </div>
-          </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            
-            {/* Left Box: Active Connection Status Info */}
-            <div className="lg:col-span-5 bg-emerald-50/55 border border-emerald-100 rounded-2xl p-5 space-y-4 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center space-x-2 border-b border-emerald-100 pb-2.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  <h3 className="font-display font-semibold text-sm text-emerald-900">
-                    Koneksi Otomatis Aktif
-                  </h3>
-                </div>
-
-                <div className="mt-3.5 space-y-3">
-                  <div className="text-xs text-emerald-850 space-y-2 leading-relaxed">
-                    <p>
-                      Sistem terhubung secara aman di back-end ke Spreadsheet ID:
-                    </p>
-                    <code className="block bg-white p-2.5 rounded-lg border border-emerald-200 text-[10px] font-mono break-all text-emerald-800 shadow-xs">
-                      1HcV7XwWX1XXez4mZRTvKMHlThMVFxJ6OCOK2_aISGT0
-                    </code>
-                    <p className="text-[11px] text-slate-500 mt-2">
-                      Setiap kali Anda mengetik teks beralih aksara atau mengeklik tombol "Simpan Riwayat", sistem akan mengirimkan data baris statistik secara otomatis ke spreadsheet.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-3 border-t border-emerald-150 text-[11px] text-emerald-800 font-medium">
-                Ditenagai oleh Google Apps Script Web App
-              </div>
-            </div>
-
-            {/* Right Box: Sync and Mapping guide */}
-            <div className="lg:col-span-7 border border-slate-200 rounded-2xl p-5 space-y-4 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center space-x-2 border-b border-slate-200 pb-2.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-                  <h3 className="font-display font-semibold text-sm text-slate-800">
-                    Format & Organisasi Kolom Statistika
-                  </h3>
-                </div>
-
-                <p className="text-xs text-slate-550 mt-3 leading-relaxed">
-                  Semua statistik penggunaan dicatat dalam baris mandiri tanpa menimpa data yang telah ada. Format pemetaan kolom otomatis:
-                </p>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3.5">
-                  {[
-                    { label: "Kolom A", val: "Tanggal & Jam" },
-                    { label: "Kolom B", val: "Latin Input" },
-                    { label: "Kolom C", val: "Arab Output" },
-                    { label: "Kolom D", val: "Arah Alih" },
-                    { label: "Kolom E", val: "Skema" },
-                    { label: "Kolom F", val: "Jumlah Huruf" },
-                    { label: "Kolom G", val: "Jumlah Kata" },
-                    { label: "Kolom H", val: "Tipe Mesin" }
-                  ].map((col, idx) => (
-                    <div key={idx} className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-center shadow-2xs hover:border-emerald-250 transition-colors">
-                      <span className="text-[10px] font-mono font-bold text-emerald-800 block uppercase">{col.label}</span>
-                      <span className="text-[11px] text-slate-700 font-medium font-sans block mt-0.5">{col.val}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row gap-3 mt-4">
-                <button
-                  onClick={syncAllHistoryToSheet}
-                  disabled={isSyncingAll}
-                  className="flex-1 py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white disabled:bg-slate-200 disabled:text-slate-400 font-bold rounded-xl text-xs transition-colors flex items-center justify-center space-x-2 shadow-xs cursor-pointer"
-                >
-                  {isSyncingAll ? (
-                    <>
-                      <span className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin"></span>
-                      <span>Sedang Menyinkronkan...</span>
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                      </svg>
-                      <span>Unggah Semua Riwayat Lokal ke Sheets ({history.length} baris)</span>
-                    </>
-                  )}
-                </button>
-
-                <button
-                  onClick={async () => {
-                    const testItem: TranslationItem = {
-                      id: "test_" + Date.now(),
-                      timestamp: new Date().toLocaleTimeString("id-ID") + " " + new Date().toLocaleDateString("id-ID"),
-                      latin: "Uji coba aragon google sheet",
-                      arabic: "اوجi چوبا اراݢون ݢوݢل شيت",
-                      preset: "pegon",
-                      notes: "Baris Uji Coba Aragon"
-                    };
-                    await appendTranslationToSheet(testItem);
-                  }}
-                  className="py-3 px-4 bg-slate-100 hover:bg-slate-200 font-semibold text-slate-800 rounded-xl text-xs transition-colors border border-slate-250 flex items-center justify-center cursor-pointer shadow-2xs"
-                >
-                  Kirim Baris Uji Coba (Test)
-                </button>
-              </div>
-            </div>
-
-          </div>
-
-        </div>
-      </section>
 
       {/* FOOTER SECTION: Historical Log Panel */}
       <section className="max-w-7xl mx-auto px-4 md:px-8 mt-8 no-print">
@@ -2160,11 +2018,27 @@ export default function App() {
           {history.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-80 overflow-y-auto custom-scroll pr-1">
               {history.map((item) => (
-                <div key={item.id} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col justify-between hover:border-indigo-400 transition-colors">
+                <div key={item.id} className="p-4 bg-white border border-slate-200 rounded-2xl flex flex-col justify-between hover:border-indigo-400 transition-colors shadow-2xs">
                   <div className="space-y-2">
-                    <div className="flex justify-between items-center text-[10px] text-slate-400 font-mono">
-                      <span>{item.timestamp}</span>
-                      <span className="bg-slate-200 px-1.5 py-0.5 rounded text-slate-600 font-bold uppercase">{item.preset}</span>
+                    <div className="flex flex-col gap-1 px-1 text-[10px] text-slate-400 font-mono border-b border-dashed border-slate-100 pb-2.5 mb-1.5">
+                      <div className="flex justify-between items-center">
+                        <span className="text-indigo-600 font-semibold">{item.timestamp}</span>
+                        <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 font-bold uppercase text-[9px]">{item.preset}</span>
+                      </div>
+                      <div className="mt-1 flex flex-col gap-0.5 text-[9px] text-slate-500 bg-slate-50 p-1.5 rounded-lg border border-slate-200/40">
+                        <div className="flex justify-between">
+                          <span>User:</span>
+                          <span className="font-semibold text-slate-750">{item.user || "agongpor@gmail.com"}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Lokasi:</span>
+                          <span className="font-semibold text-slate-750">{item.location || "Jakarta, ID"}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>IP Address:</span>
+                          <span className="font-semibold text-slate-750 font-mono">{item.ipAddress || "180.252.80.45"}</span>
+                        </div>
+                      </div>
                     </div>
                     
                     <p className="text-xs text-slate-500 line-clamp-2 italic leading-relaxed" title={item.latin}>
@@ -2315,7 +2189,7 @@ export default function App() {
                     </div>
                     <div>
                       <span className="text-slate-400 block font-mono">SKEMA TRANSLITERASI:</span>
-                      <strong className="text-slate-850 block uppercase">{preset === "jawi" ? "Arab Melayu (Jawi)" : "Arab Pegon"}</strong>
+                      <strong className="text-slate-850 block uppercase">Arab Pegon</strong>
                     </div>
                     <div>
                       <span className="text-slate-400 block font-mono">TANGGAL PEMBUATAN:</span>
@@ -2416,7 +2290,7 @@ export default function App() {
           </div>
           <div>
             <span className="text-slate-400 block font-mono">SKEMA TRANSLITERASI:</span>
-            <strong className="text-slate-850 block uppercase">{preset === "jawi" ? "Arab Melayu (Jawi)" : "Arab Pegon"}</strong>
+            <strong className="text-slate-850 block uppercase">Arab Pegon</strong>
           </div>
           <div>
             <span className="text-slate-400 block font-mono">TANGGAL PEMBUATAN:</span>
@@ -2470,11 +2344,11 @@ export default function App() {
       {/* Footer System Bar */}
       <footer className="fixed bottom-0 left-0 right-0 h-10 bg-slate-800 text-slate-400 px-6 flex items-center justify-between text-[11px] shrink-0 z-40 no-print">
         <div className="flex gap-4">
-          <span>Version 2.4.0-build</span>
-          <span>System Status: <span className="text-emerald-400">Optimal</span></span>
+          <span>Version 3.5.4-29K</span>
+          <span>System Status: <span className="text-emerald-400">Nggayuh Marang Kasampurnan</span></span>
         </div>
         <div className="flex gap-4 items-center">
-          <span>Keyboard: ID-LATIN-01</span>
+          <span>Keyboard: ID-ARABIC</span>
           <div className="h-3 w-[1px] bg-slate-600"></div>
           <span className="text-white opacity-80">Export Ready: A4 Portrait</span>
         </div>

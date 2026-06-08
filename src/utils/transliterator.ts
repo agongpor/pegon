@@ -342,7 +342,7 @@ export function transliterateWord(
   });
 
   // Handle Initial Vowel Rule
-  // Di Jawi/Pegon, huruf vokal di awal kata harus diawali Alif (ا).
+  // Di Pegon, huruf vokal di awal kata harus diawali Alif (ا).
   // Misal: anak -> ا + nak, ibu -> ا + ibu, dsb.
   const firstChar = workingWord[0];
   let startsWithVowel = false;
@@ -395,20 +395,11 @@ export function transliterateWord(
     charLookup["ê"] = ""; // ê is always pepet (unwritten)
   }
 
-  // Special Glottal Stop Rule for K in Jawi & End-of-word Kaf rule in Pegon
-  // Di Jawi/Arab Melayu, 'k' di akhir kata sering ditulis dengan Qaf (ق).
+  // End-of-word Kaf rule in Pegon
   // Di Pegon, 'k' di akhir kata menggunakan huruf Kaf biasa (ك).
   let endsWithKRuleApplied = false;
   let wordWithKPlaceholder = workingWord;
-  if (preset === "jawi" && workingWord.endsWith("k") && workingWord.length > 1) {
-    endsWithKRuleApplied = true;
-    wordWithKPlaceholder = workingWord.slice(0, -1) + "[qaf-akhir]";
-    steps.push({
-      original: workingWord,
-      result: wordWithKPlaceholder,
-      explanation: `Aturan Jawi: Huruf 'k' di akhir kata diubah menjadi Qaf (ق) sebagai hamzah/glottal stop.`,
-    });
-  } else if (preset === "pegon" && workingWord.endsWith("k") && workingWord.length > 1) {
+  if (workingWord.endsWith("k") && workingWord.length > 1) {
     endsWithKRuleApplied = true;
     wordWithKPlaceholder = workingWord.slice(0, -1) + "[kaf-akhir]";
     steps.push({
@@ -466,7 +457,7 @@ export function transliterateWord(
     if (charLookup[currentChar] !== undefined) {
       const arabicChar = charLookup[currentChar];
       
-      // Smart Pepet vowel handling: in Jawi & Pegon, 'e' as pepet (e.g. bekas, bekal, emas, kera, teman) is unwritten.
+      // Smart Pepet vowel handling: in Pegon, 'e' as pepet (e.g. bekas, bekal, emas, kera, teman) is unwritten.
       if ((currentChar === "e" || currentChar === "ê") && isEPepet(wordToScan, i)) {
         steps.push({
           original: currentChar,

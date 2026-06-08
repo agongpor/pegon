@@ -7,7 +7,7 @@ export interface CustomMapping {
   isPreset?: boolean;
 }
 
-export type PresetType = "jawi" | "pegon" | "custom";
+export type PresetType = "pegon" | "custom";
 
 export interface TransliteratorConfig {
   preset: PresetType;
@@ -21,6 +21,9 @@ export interface TranslationItem {
   arabic: string;
   preset: PresetType;
   notes?: string;
+  user?: string;
+  location?: string;
+  ipAddress?: string;
 }
 
 export interface ConversionStep {
