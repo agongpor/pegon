@@ -96,10 +96,9 @@ export default function App() {
 
   // States for direct browser-to-sheet sync (essential for static SPA hosting like Vercel / GitHub Pages)
   const [isStaticDeployment, setIsStaticDeployment] = useState(() => {
-    // Detect typical static origins or retrieve previously detected mode from session
+    // Detect typical static origins
     return window.location.hostname.includes("vercel.app") || 
-           window.location.hostname.includes("github.io") || 
-           localStorage.getItem("aksara_is_static") === "true";
+           window.location.hostname.includes("github.io");
   });
 
   const [serverSyncStatus, setServerSyncStatus] = useState<{
@@ -117,7 +116,7 @@ export default function App() {
 
   // Helper to upload history items directly to Google Sheets from the browser (essential for static deployments like Vercel)
   const uploadDirectToSheetsClientSide = async (item: TranslationItem, activeDirection: string) => {
-    const spreadsheetId = "1HcV7H0X1XXez4mZRTvKMHlThMVFxJ6OCOK2_aISGT0"; // keep dummy ID safe
+    const spreadsheetId = "1HcV7XwWX1XXez4mZRTvKMHlThMVFxJ6OCOK2_aISGT0"; // Corrected original Spreadsheet ID
     const appsScriptUrl = "https://script.google.com/macros/s/AKfycbzDFtcUGMExq9KeM-0g9z_Qqg8GXmzgNEl4pdrYpmex_P2gcSSIkn9F3DBxiCu-hLv7/exec";
 
     const userToUse = "Anonim";
@@ -163,6 +162,9 @@ export default function App() {
 
   // Fetch server-side sync status periodically (5 seconds)
   useEffect(() => {
+    // Clear any outdated/stale state from local storage on initial mount to recover server sync
+    localStorage.removeItem("aksara_is_static");
+
     const fetchSyncStatus = () => {
       fetch("/api/sheets/status")
         .then(res => {
@@ -175,7 +177,6 @@ export default function App() {
           if (data) {
             setQueueSize(data.queueSize);
             setIsStaticDeployment(false);
-            localStorage.setItem("aksara_is_static", "false");
             if (data.lastSyncStatus) {
               setServerSyncStatus(data.lastSyncStatus);
             }
@@ -196,7 +197,6 @@ export default function App() {
         .catch(err => {
           console.log("Berjalan dalam Mode Statik (Tanpa Server - Misal Vercel/GitHub):", err);
           setIsStaticDeployment(true);
-          localStorage.setItem("aksara_is_static", "true");
         });
     };
 
