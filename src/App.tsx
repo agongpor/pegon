@@ -1488,7 +1488,7 @@ export default function App() {
     });
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-amber-100 selection:text-amber-900 pb-20">
+    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-amber-100 selection:text-amber-900 pb-28 md:pb-20">
       
       {/* Toast Notification */}
       {toastMessage && (
@@ -1499,28 +1499,28 @@ export default function App() {
       )}
 
       {/* Main Header Screen Layout */}
-      <header className="bg-white border-b border-slate-200 py-4 px-4 md:px-8 shadow-sm no-print">
-        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row justify-between items-center gap-4">
+      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200 py-3 px-4 md:py-4 md:px-8 shadow-sm no-print">
+        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row justify-between items-center gap-3 md:gap-4">
           
           <div className="flex items-center space-x-3 w-full lg:w-auto justify-between lg:justify-start">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center shadow-md">
-                <span className="text-white font-bold text-xl">A</span>
+              <div className="w-9 h-9 md:w-10 md:h-10 bg-indigo-600 rounded-lg flex items-center justify-center shadow-md shrink-0">
+                <span className="text-white font-bold text-lg md:text-xl font-display">A</span>
               </div>
               <div>
                 <div className="flex items-center space-x-2">
-                  <h1 className="text-xl font-extrabold text-slate-900 leading-none tracking-tight font-display">
+                  <h1 className="text-lg md:text-xl font-extrabold text-indigo-950 leading-none tracking-tight font-display">
                     aragon
                   </h1>
                   <button
                     onClick={() => setIsInfoModalOpen(true)}
-                    className="p-1 text-slate-400 hover:text-indigo-650 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
+                    className="p-1 text-slate-400 hover:text-indigo-660 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
                     title="Informasi Aplikasi"
                   >
-                    <Info className="w-4 h-4" />
+                    <Info className="w-3.5 h-3.5 md:w-4 md:h-4" />
                   </button>
                 </div>
-                <p className="text-xs text-slate-500 mt-1 font-medium italic">
+                <p className="text-[10px] md:text-xs text-slate-500 mt-0.5 font-medium italic">
                   aplikasi arab pegon
                 </p>
               </div>
@@ -1528,7 +1528,7 @@ export default function App() {
           </div>
 
           {/* Direction Selector inside Header */}
-          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-250 w-full sm:w-auto shadow-2xs">
+          <div className="flex items-center bg-slate-100 p-0.5 md:p-1 rounded-xl border border-slate-200 w-full lg:w-auto shadow-2xs">
             <button
               onClick={() => {
                 setDirection("latin-to-pegon");
@@ -1538,7 +1538,7 @@ export default function App() {
                 setAiExplanation("");
                 showToast("Mode diubah: Latin ➔ Arab Pegon");
               }}
-              className={`flex-1 sm:flex-initial py-2 px-6 rounded-lg font-bold text-xs transition-all text-center cursor-pointer ${
+              className={`flex-1 lg:flex-initial py-1.5 px-4 md:py-2 md:px-6 rounded-lg font-bold text-[11px] md:text-xs transition-all text-center cursor-pointer ${
                 direction === "latin-to-pegon"
                   ? "bg-white text-indigo-600 shadow-sm border border-slate-200"
                   : "text-slate-500 hover:text-slate-800"
@@ -1555,7 +1555,7 @@ export default function App() {
                 setAiExplanation("");
                 showToast("Mode diubah: Arab Pegon ➔ Latin");
               }}
-              className={`flex-1 sm:flex-initial py-2 px-6 rounded-lg font-bold text-xs transition-all text-center cursor-pointer ${
+              className={`flex-1 lg:flex-initial py-1.5 px-4 md:py-2 md:px-6 rounded-lg font-bold text-[11px] md:text-xs transition-all text-center cursor-pointer ${
                 direction === "pegon-to-latin"
                   ? "bg-white text-indigo-600 shadow-sm border border-slate-200"
                   : "text-slate-500 hover:text-slate-800"
@@ -1565,7 +1565,7 @@ export default function App() {
             </button>
           </div>
 
-          <div className="flex items-center gap-4 w-full lg:w-auto justify-center lg:justify-end">
+          <div className="hidden sm:flex items-center gap-4 w-full lg:w-auto justify-center lg:justify-end">
             {/* Environmental parameters & information tags */}
             <div className="flex flex-wrap items-center gap-2 text-xs">
               
@@ -2762,12 +2762,12 @@ export default function App() {
       </section>
 
       {/* FOOTER Credits no-print */}
-      <footer className="max-w-7xl mx-auto text-center mt-12 text-slate-400 text-xs no-print space-y-2">
+      <footer className="max-w-7xl mx-auto text-center mt-12 text-slate-400 text-xs no-print space-y-2 px-4">
         <p className="font-mono">
           © {new Date().getFullYear()} Aplikasi Penulisan Arab Pegon. Semua Hak Dilindungi.
         </p>
-        <p className="flex justify-center items-center gap-1">
-          Ditenagai oleh <span className="font-mono text-indigo-800 font-semibold bg-indigo-50 px-1 rounded">Vite React</span> dan <span className="font-mono text-amber-700 font-semibold bg-amber-50 inline-flex items-center gap-0.5 px-1 rounded"><Sparkles className="w-2.5 h-2.5 inline" /> Gemini 3.5-Flash</span>
+        <p className="flex flex-wrap justify-center items-center gap-1.5 text-center">
+          Ditenagai oleh <span className="font-mono text-indigo-800 font-semibold bg-indigo-50 px-1.5 py-0.5 rounded">Vite React</span> dan <span className="font-mono text-amber-700 font-semibold bg-amber-50 inline-flex items-center gap-1 px-1.5 py-0.5 rounded"><Sparkles className="w-2.5 h-2.5 inline" /> Gemini 3.5-Flash</span>
         </p>
       </footer>
 
@@ -3143,14 +3143,15 @@ export default function App() {
       </div>
 
       {/* Footer System Bar */}
-      <footer className="fixed bottom-0 left-0 right-0 h-10 bg-slate-800 text-slate-400 px-6 flex items-center justify-between text-[11px] shrink-0 z-40 no-print">
-        <div className="flex gap-4">
+      <footer className="fixed bottom-0 left-0 right-0 h-auto md:h-10 bg-slate-900 border-t border-slate-800 text-slate-400 px-4 md:px-6 py-2.5 md:py-0 flex flex-col md:flex-row items-center justify-between text-[10px] md:text-[11px] gap-2 md:gap-4 z-40 no-print">
+        <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-4 text-center">
           <span>Version 3.5.4-29K</span>
-          <span>System Status: <span className="text-emerald-400">Nggayuh Marang Kasampurnan</span></span>
+          <span className="hidden sm:inline text-slate-700">|</span>
+          <span>System Status: <span className="text-emerald-400 font-medium">Nggayuh Marang Kasampurnan</span></span>
         </div>
-        <div className="flex gap-4 items-center">
+        <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 font-medium">
           <span>Keyboard: ID-ARABIC</span>
-          <div className="h-3 w-[1px] bg-slate-600"></div>
+          <div className="h-3 w-[1px] bg-slate-700 hidden sm:block"></div>
           <span className="text-white opacity-80">Export Ready: A4 Portrait</span>
         </div>
       </footer>
