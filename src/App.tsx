@@ -24,7 +24,8 @@ import {
   Mic,
   MicOff,
   User,
-  X
+  X,
+  Edit2
 } from "lucide-react";
 import { CustomMapping, PresetType, TranslationItem, WordConversionResult } from "./types";
 import { DEFAULT_PEGON_MAPPINGS } from "./utils/presets";
@@ -77,6 +78,12 @@ export default function App() {
   const [newArabic, setNewArabic] = useState("");
   const [newType, setNewType] = useState<"character" | "digraph" | "word">("character");
   const [newDescription, setNewDescription] = useState("");
+
+  // Inline rule editing state
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+  const [editLatin, setEditLatin] = useState("");
+  const [editArabic, setEditArabic] = useState("");
+  const [editDescription, setEditDescription] = useState("");
 
   // AI Translation mode state
   const [useAI, setUseAI] = useState(false);
@@ -1237,6 +1244,54 @@ export default function App() {
     
     // Automatically keep Google Sheet reference / dictionary tab synchronized
     syncRulesToSheetsDirect(updated);
+  };
+
+  // Start inline editing of custom mapping
+  const handleEditRuleStart = (rule: CustomMapping) => {
+    setEditingRuleId(rule.id);
+    setEditLatin(rule.latin);
+    setEditArabic(rule.arabic);
+    setEditDescription(rule.description || "");
+  };
+
+  // Cancel inline editing of custom mapping
+  const handleEditRuleCancel = () => {
+    setEditingRuleId(null);
+    setEditLatin("");
+    setEditArabic("");
+    setEditDescription("");
+  };
+
+  // Save changes to edited custom mapping of the current preset
+  const handleSaveRuleEdit = (id: string) => {
+    const cleanLatin = editLatin.trim().toLowerCase();
+    const cleanArabic = editArabic.trim();
+    if (!cleanLatin || !cleanArabic) {
+      alert("Kolom Latin dan Arab tidak boleh kosong.");
+      return;
+    }
+
+    const updated = customMappings.map(m => {
+      if (m.id === id) {
+        return {
+          ...m,
+          latin: cleanLatin,
+          arabic: cleanArabic,
+          description: editDescription.trim()
+        };
+      }
+      return m;
+    });
+
+    setCustomMappings(updated);
+    sessionStorage.setItem(`aksara_rules_${preset}`, JSON.stringify(updated));
+    showToast(`Referensi alih aksara berhasil diperbaharui!`);
+
+    // Automatically keep Google Sheet reference / dictionary tab synchronized
+    syncRulesToSheetsDirect(updated);
+
+    // Turn off editing mode
+    handleEditRuleCancel();
   };
 
   // Save current translation to history list
@@ -2453,39 +2508,105 @@ export default function App() {
                   </thead>
                   <tbody className="divide-y divide-slate-150 text-xs">
                     {filteredMappings.length > 0 ? (
-                      filteredMappings.map((rule) => (
-                        <tr key={rule.id} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="py-2.5 px-4 font-mono font-bold text-slate-700">
-                            {rule.latin}
-                          </td>
-                          <td className="py-2.5 px-4 text-indigo-900 font-arabic font-bold text-lg leading-none">
-                            {rule.arabic}
-                          </td>
-                          <td className="py-2.5 px-4 text-slate-500 text-[11px]">
-                            <div className="flex items-center space-x-1.5">
-                              <span className={`px-1.5 py-0.5 rounded-[4px] text-[9px] font-bold ${
-                                rule.isPreset ? "bg-slate-100 text-slate-400" : "bg-indigo-100 text-indigo-700"
-                              }`}>
-                                {rule.isPreset ? "Bawaan" : "Kustom"}
-                              </span>
-                              <span>{rule.description || "-"}</span>
-                            </div>
-                          </td>
-                          <td className="py-2.5 px-4 text-right">
-                            {rule.isPreset ? (
-                              <span className="text-slate-300 italic text-[10px]">Terkunci</span>
+                      filteredMappings.map((rule) => {
+                        const isEditing = rule.id === editingRuleId;
+                        return (
+                          <tr key={rule.id} className={`${isEditing ? "bg-amber-50/50" : "hover:bg-slate-50/50"} transition-colors`}>
+                            {isEditing ? (
+                              <>
+                                <td className="py-2 px-4 font-mono font-bold text-slate-700">
+                                  <input
+                                    type="text"
+                                    value={editLatin}
+                                    onChange={(e) => setEditLatin(e.target.value)}
+                                    className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs font-mono focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                                    title="Teks Latin Asal"
+                                  />
+                                </td>
+                                <td className="py-2 px-4 text-indigo-900 font-arabic font-bold text-lg leading-none">
+                                  <input
+                                    type="text"
+                                    value={editArabic}
+                                    onChange={(e) => setEditArabic(e.target.value)}
+                                    className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-right font-arabic font-bold text-sm focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                                    dir="rtl"
+                                    title="Hasil Aksara"
+                                  />
+                                </td>
+                                <td className="py-2 px-4 text-slate-500 text-[11px]">
+                                  <input
+                                    type="text"
+                                    value={editDescription}
+                                    onChange={(e) => setEditDescription(e.target.value)}
+                                    className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                                    placeholder="Deskripsi singkat..."
+                                    title="Keterangan singkat"
+                                  />
+                                </td>
+                                <td className="py-2 px-4 text-right">
+                                  <div className="flex justify-end items-center space-x-1.5">
+                                    <button
+                                      onClick={() => handleSaveRuleEdit(rule.id)}
+                                      className="p-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 rounded-lg transition-colors"
+                                      title="Simpan Perubahan"
+                                    >
+                                      <Check className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={handleEditRuleCancel}
+                                      className="p-1.5 bg-rose-100 hover:bg-rose-200 text-rose-700 rounded-lg transition-colors"
+                                      title="Batal"
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </>
                             ) : (
-                              <button
-                                onClick={() => handleDeleteRule(rule.id, `${rule.latin} &rarr; ${rule.arabic}`)}
-                                className="p-1 text-slate-400 hover:text-red-650 transition-colors"
-                                title="Hapus Aturan"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                              <>
+                                <td className="py-2.5 px-4 font-mono font-bold text-slate-700">
+                                  {rule.latin}
+                                </td>
+                                <td className="py-2.5 px-4 text-indigo-950 font-arabic font-bold text-lg leading-none">
+                                  {rule.arabic}
+                                </td>
+                                <td className="py-2.5 px-4 text-slate-500 text-[11px]">
+                                  <div className="flex items-center space-x-1.5">
+                                    <span className={`px-1.5 py-0.5 rounded-[4px] text-[9px] font-bold ${
+                                      rule.isPreset ? "bg-slate-100 text-slate-400" : "bg-indigo-100 text-indigo-700"
+                                    }`}>
+                                      {rule.isPreset ? "Bawaan" : "Kustom"}
+                                    </span>
+                                    <span>{rule.description || "-"}</span>
+                                  </div>
+                                </td>
+                                <td className="py-2.5 px-4 text-right">
+                                  {rule.isPreset ? (
+                                    <span className="text-slate-300 italic text-[10px]">Terkunci</span>
+                                  ) : (
+                                    <div className="flex justify-end items-center space-x-1">
+                                      <button
+                                        onClick={() => handleEditRuleStart(rule)}
+                                        className="p-1 text-slate-400 hover:text-indigo-650 transition-colors"
+                                        title="Ubah Referensi"
+                                      >
+                                        <Edit2 className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteRule(rule.id, `${rule.latin} &rarr; ${rule.arabic}`)}
+                                        className="p-1 text-slate-400 hover:text-red-650 transition-colors"
+                                        title="Hapus Aturan"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  )}
+                                </td>
+                              </>
                             )}
-                          </td>
-                        </tr>
-                      ))
+                          </tr>
+                        );
+                      })
                     ) : (
                       <tr>
                         <td colSpan={4} className="py-10 text-center text-slate-400 italic">
