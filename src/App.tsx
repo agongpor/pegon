@@ -2633,7 +2633,7 @@ export default function App() {
                   Manajer Referensi & Kamus Kustom (Aksara Arab Pegon)
                 </h2>
                 <p className="text-slate-500 text-xs mt-0.5">
-                  Visualisasikan, ubah ejaan tunggal, definisikan digraf, atau daftarkan Kamus Kata Anda sebagai pedoman transliterasi. <span className="font-semibold text-indigo-750">Tips: Klik 3 kali pada baris tabel kustom untuk mengedit, serta klik 3 kali pada ikon kunci (🔒) di bar pengaturan huruf untuk membuka kunci ejaan g, ng, p, ny, dan c.</span>
+                  Visualisasikan, ubah ejaan tunggal, definisikan digraf, atau daftarkan Kamus Kata Anda sebagai pedoman transliterasi.
                 </p>
               </div>
             </div>
